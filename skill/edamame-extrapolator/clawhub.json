@@ -1,0 +1,37 @@
+{
+  "name": "edamame-extrapolator",
+  "version": "2.0.0",
+  "description": "Reasoning-Plane Extrapolator: reads raw OpenClaw session history on a sliding window and distills it into compact agent-tagged 'expected system-plane behavior' predictions. Pushes a single-agent behavioral-model slice to EDAMAME via the upsert_behavioral_model MCP tool for the internal divergence engine to correlate against live telemetry.",
+  "tagline": "Session history to behavioral predictions for two-plane security",
+  "category": "security",
+  "author": "EDAMAME Technologies",
+  "license": "MIT",
+  "homepage": "https://github.com/edamametechnologies/openclaw_security",
+  "repository": "https://github.com/edamametechnologies/openclaw_security",
+  "support_url": "https://github.com/edamametechnologies/openclaw_security/issues",
+  "entry": "SKILL.md",
+  "minOpenClawVersion": "0.8.0",
+  "tags": [
+    "security", "runtime", "two-plane", "reasoning-plane", "behavioral-model",
+    "extrapolation", "edamame"
+  ],
+  "requires": {
+    "tools": [
+      "memory_get", "memory_search", "sessions_list", "sessions_history",
+      "upsert_behavioral_model", "get_behavioral_model"
+    ],
+    "bins": [],
+    "external": ["edamame_posture"]
+  },
+  "security": {
+    "shell_commands": [],
+    "mcp_tools": ["upsert_behavioral_model", "get_behavioral_model"],
+    "external_endpoints": ["http://127.0.0.1:3000/mcp (local EDAMAME MCP server, PSK-authenticated)"],
+    "file_operations": [],
+    "environment_variables": [],
+    "credential_access": false,
+    "network_egress": true,
+    "persistence": false,
+    "notes": "This skill reads OpenClaw-native data (session transcripts via sessions_list/sessions_history, agent memory via memory_get) and pushes behavioral predictions to EDAMAME via the upsert_behavioral_model MCP tool. The internal divergence engine inside EDAMAME Posture then correlates these predictions against live telemetry."
+  }
+}
