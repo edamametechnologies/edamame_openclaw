@@ -19,6 +19,19 @@ telemetry, posture, remediation, divergence, LAN scanning, breach detection, and
 | `edamame-extrapolator` | Reads session transcripts and publishes behavioral models via `upsert_behavioral_model` |
 | `edamame-posture` | Thin MCP facade over EDAMAME posture/remediation workflows |
 
+### Publishing (`publish.sh`)
+
+Publish skills to ClawHub and build the plugin bundle:
+
+```bash
+./publish.sh                    # Publish skills + build plugin bundle
+./publish.sh --skills-only      # Publish to ClawHub only
+./publish.sh --plugin-only     # Build plugin bundle only (no ClawHub)
+./publish.sh --dry-run         # Show what would be done
+```
+
+Prerequisites: `clawhub` CLI (`npm i -g clawhub`) and `clawhub login`.
+
 ### Lima VM Setup (`setup/`)
 
 Provision scripts for running the full EDAMAME + OpenClaw stack in a Lima VM:
