@@ -1,12 +1,17 @@
-# Lima VM template for Frank's personal OpenClaw + EDAMAME Posture instance
+# Lima VM template for OpenClaw + EDAMAME Posture (example)
 #
-# Uses different host ports to coexist with the default openclaw-security VM:
-#   - EDAMAME gRPC:       host 40153 -> guest 40152  (avoid blocking macOS app)
+# Uses alternate host ports so it can coexist with other VMs or the macOS app:
+#   - EDAMAME gRPC:       host 40153 -> guest 40152
 #   - OpenClaw Dashboard: host 18790 -> guest 18789
 #   - EDAMAME MCP:        host 3002  -> guest 3000
 #
 # Usage:
-#   VM_NAME=frank-openclaw LIMA_TEMPLATE=setup/lima-frank-openclaw.yaml ./setup/setup.sh
+#   VM_NAME=edamame-openclaw-example LIMA_TEMPLATE=setup/lima-example-openclaw.yaml limactl create --name=edamame-openclaw-example setup/lima-example-openclaw.yaml
+#   limactl start edamame-openclaw-example
+#   limactl shell edamame-openclaw-example -- bash /path/to/provision.sh
+#
+# Provision env vars (see provision.sh header): EDAMAME_LLM_API_KEY,
+# EDAMAME_TELEGRAM_BOT_TOKEN, EDAMAME_TELEGRAM_CHAT_ID, etc.
 
 images:
   - location: "~/.lima/_images/ubuntu-24.04-server-cloudimg-amd64.img"

@@ -6,9 +6,9 @@
   "category": "security",
   "author": "EDAMAME Technologies",
   "license": "MIT",
-  "homepage": "https://github.com/edamametechnologies/openclaw_security",
-  "repository": "https://github.com/edamametechnologies/openclaw_security",
-  "support_url": "https://github.com/edamametechnologies/openclaw_security/issues",
+  "homepage": "https://github.com/edamametechnologies/edamame_openclaw",
+  "repository": "https://github.com/edamametechnologies/edamame_openclaw",
+  "support_url": "https://github.com/edamametechnologies/edamame_openclaw/issues",
   "entry": "SKILL.md",
   "minOpenClawVersion": "0.8.0",
   "tags": [

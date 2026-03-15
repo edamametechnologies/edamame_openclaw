@@ -41,6 +41,12 @@
 #   EDAMAME_AGENTIC_SLACK_ACTIONS_CHANNEL - Slack channel ID for routine summaries.
 #   EDAMAME_AGENTIC_SLACK_ESCALATIONS_CHANNEL - Slack channel ID for escalations
 #                                               (defaults to actions channel when unset).
+#   EXTRAPOLATOR_MODE - Extrapolator execution mode (default: compiled).
+#                      compiled = zero OpenClaw LLM tokens; uses the
+#                                 extrapolator_run_cycle plugin tool and
+#                                 EDAMAME's internal LLM.
+#                      llm      = full agent runbook; the OpenClaw agent
+#                                 LLM reads transcripts and builds the model.
 #   ALERT_TO       - Recipient for conditional alerts (E.164 for WhatsApp, chat ID for
 #                    Telegram, etc). Skills send alerts only when actionable conditions
 #                    are detected (DIVERGENCE verdict, escalated posture items).
@@ -538,7 +544,7 @@ Wants=network-online.target
 [Service]
 Type=forking
 ExecStart=/usr/local/bin/edamame_posture background-start-disconnected --network-scan --packet-capture --agentic-mode analyze
-ExecStartPost=/bin/bash -c 'sleep 5; PSK="$(cat /home/flyonnet.linux/.edamame_psk 2>/dev/null || true)"; [ -n "$PSK" ] && /usr/local/bin/edamame_posture background-mcp-start 3000 "$PSK" >/dev/null 2>&1 || true'
+ExecStartPost=/bin/bash -c 'sleep 5; PSK="$(cat "\$HOME/.edamame_psk" 2>/dev/null || true)"; [ -n "\$PSK" ] && /usr/local/bin/edamame_posture background-mcp-start 3000 "\$PSK" >/dev/null 2>&1 || true'
 ExecStop=/usr/local/bin/edamame_posture background-stop
 Restart=on-failure
 RestartSec=10
@@ -1191,22 +1197,24 @@ fi
 # Helper functions for test/demo cron reconfiguration
 reconfigure_cron_fast() {
     # Optional: cron jobs may not exist in fresh install; used by tests/demos
-    echo "  Reconfiguring extrapolator cron to */2 for fast feedback..."
+    echo "  Reconfiguring extrapolator cron to */1 for fast feedback..."
     openclaw cron update --name "Cortex Extrapolator" \
-        --cron "*/2 * * * *" --exact 2>&1 || true
-    echo "  Reconfiguring divergence verdict reader cron to 1-59/2 for fast feedback..."
-    openclaw cron update --name "Divergence Verdict Reader" \
-        --cron "1-59/2 * * * *" --exact 2>&1 || true
+        --cron "*/1 * * * *" --exact 2>&1 || true
 }
 
 restore_cron_production() {
     # Optional: cron jobs may not exist; used by tests/demos
-    echo "  Restoring extrapolator cron to */5 (production)..."
-    openclaw cron update --name "Cortex Extrapolator" \
-        --cron "*/5 * * * *" --exact 2>&1 || true
-    echo "  Restoring divergence verdict reader cron to 1-56/5 (production)..."
-    openclaw cron update --name "Divergence Verdict Reader" \
-        --cron "1-56/5 * * * *" --exact 2>&1 || true
+    # Compiled mode: */1 (cheap). LLM mode: */5 (token cost).
+    local mode="${EXTRAPOLATOR_MODE:-compiled}"
+    if [ "$mode" = "compiled" ]; then
+        echo "  Restoring extrapolator cron to */1 (production, compiled)..."
+        openclaw cron update --name "Cortex Extrapolator" \
+            --cron "*/1 * * * *" --exact 2>&1 || true
+    else
+        echo "  Restoring extrapolator cron to */5 (production, llm)..."
+        openclaw cron update --name "Cortex Extrapolator" \
+            --cron "*/5 * * * *" --exact 2>&1 || true
+    fi
 }
 
 # Remove cron by name with compatibility for older OpenClaw CLI versions
@@ -1253,38 +1261,54 @@ remove_cron_by_name_compat "Divergence Detector"
 remove_cron_by_name_compat "Posture Security Check"
 remove_cron_by_name_compat "Extrapolator"
 
-# Register extrapolator cron (reads session history, writes behavioral model)
-echo "  Registering extrapolator cron job..."
-openclaw cron add \
-    --name "Cortex Extrapolator" \
-    --cron "*/5 * * * *" \
-    --exact \
-    --session isolated \
-    --light-context \
-    --timeout 600000 \
-    --timeout-seconds 600 \
-    --thinking off \
-    --message "Run extrapolation. This message is authoritative; do not read SKILL.md. Read MEMORY.md but use only the ## [extrapolator] State section and ignore any legacy [cortex-extrapolator] or [expected-behavior] sections. Call sessions_list activeMinutes=15, then sessions_history includeTools=true limit=100 for sessions with new activity. Build a V3 upsert_behavioral_model window_json with top-level fields window_start, window_end, agent_type, agent_instance_id, predictions, contributors, version, hash, ingested_at. Each prediction must be an object with agent_type, agent_instance_id, session_key, action, tools_called, expected_traffic, expected_sensitive_files, expected_lan_devices, expected_local_open_ports, expected_process_paths, expected_parent_paths, expected_open_files, expected_l7_protocols, expected_system_config, not_expected_traffic, not_expected_sensitive_files, not_expected_lan_devices, not_expected_local_open_ports, not_expected_process_paths, not_expected_parent_paths, not_expected_open_files, not_expected_l7_protocols, not_expected_system_config. Use agent_type=openclaw, a stable agent_instance_id, contributors=[], version=3.0, hash=\"\", and arrays not objects. After upsert_behavioral_model, call get_behavioral_model and retry until the result is non-null, has predictions, and includes your contributor identity. Update only the ## [extrapolator] State checkpoint in MEMORY.md with last_analysis_ts, cycles_completed, and analyzed_sessions; do not write an [expected-behavior] section. Print EXTRAPOLATOR_DONE: <N> sessions processed, behavioral model upserted only after read-back succeeds." \
-    --no-deliver 2>&1 || echo "  (cron job may already exist)"
-echo "  Extrapolator cron registered (*/5 production)"
+# Register extrapolator cron (reads session history, writes behavioral model).
+#
+# EXTRAPOLATOR_MODE selects how the cron job runs:
+#   compiled  (default) - Calls extrapolator_run_cycle plugin tool. Zero
+#                         OpenClaw agent LLM tokens. EDAMAME's internal
+#                         LLM handles behavioral model generation.
+#   llm                 - Full agent runbook (LLM-driven). Uses the OpenClaw
+#                         agent LLM to read transcripts and build the model.
+#
+EXTRAPOLATOR_MODE="${EXTRAPOLATOR_MODE:-compiled}"
+echo "  Registering extrapolator cron job (mode: $EXTRAPOLATOR_MODE)..."
 
-# Register divergence verdict reader cron (reads engine verdict + alerts)
-# The internal divergence engine runs inside EDAMAME Posture (no skill needed).
-# This cron reads the verdict via MCP and sends alerts when actionable.
-# Always --no-deliver: the cron itself calls send_alert conditionally.
-echo "  Registering divergence verdict reader cron job..."
-openclaw cron add \
-    --name "Divergence Verdict Reader" \
-    --cron "1-56/5 * * * *" \
-    --exact \
-    --session isolated \
-    --light-context \
-    --timeout 600000 \
-    --timeout-seconds 600 \
-    --thinking off \
-    --message "Read the latest divergence verdict from the internal EDAMAME engine. Call get_divergence_verdict to get the current verdict. Call get_divergence_engine_status to check engine health. If the verdict is DIVERGENCE AND has dangerous signals (floor_violations > 0, blacklisted sessions, unexplained anomalous sessions, or CRITICAL/HIGH evidence), call the send_alert tool with a short actionable summary. Do NOT call send_alert for CLEAN, NO_MODEL, or STALE verdicts without dangerous signals. Print VERDICT_READER_DONE." \
-    --no-deliver 2>&1 || echo "  (cron job may already exist)"
-echo "  Divergence verdict reader cron registered (1-56/5 production, 1 min offset)"
+case "$EXTRAPOLATOR_MODE" in
+    compiled)
+        # Compiled mode is cheap (zero OpenClaw LLM tokens), run every minute.
+        openclaw cron add \
+            --name "Cortex Extrapolator" \
+            --cron "*/1 * * * *" \
+            --exact \
+            --session isolated \
+            --light-context \
+            --timeout 600000 \
+            --timeout-seconds 600 \
+            --thinking off \
+            --message "Call extrapolator_run_cycle with active_minutes=5. Report the JSON result. If it fails, fall back to the edamame-extrapolator SKILL.md Mode B runbook." \
+            --no-deliver 2>&1 || echo "  (cron job may already exist)"
+        echo "  Extrapolator cron registered (*/1 production, mode=compiled)"
+        ;;
+    llm)
+        # LLM mode consumes OpenClaw agent tokens, run every 5 minutes.
+        openclaw cron add \
+            --name "Cortex Extrapolator" \
+            --cron "*/5 * * * *" \
+            --exact \
+            --session isolated \
+            --light-context \
+            --timeout 600000 \
+            --timeout-seconds 600 \
+            --thinking off \
+            --message "Run extrapolation. This message is authoritative; do not read SKILL.md. Read MEMORY.md but use only the ## [extrapolator] State section and ignore any legacy [cortex-extrapolator] or [expected-behavior] sections. Call sessions_list activeMinutes=15, then sessions_history includeTools=true limit=100 for sessions with new activity. Build a V3 upsert_behavioral_model window_json with top-level fields window_start, window_end, agent_type, agent_instance_id, predictions, contributors, version, hash, ingested_at. Each prediction must be an object with agent_type, agent_instance_id, session_key, action, tools_called, expected_traffic, expected_sensitive_files, expected_lan_devices, expected_local_open_ports, expected_process_paths, expected_parent_paths, expected_open_files, expected_l7_protocols, expected_system_config, not_expected_traffic, not_expected_sensitive_files, not_expected_lan_devices, not_expected_local_open_ports, not_expected_process_paths, not_expected_parent_paths, not_expected_open_files, not_expected_l7_protocols, not_expected_system_config. Use agent_type=openclaw, a stable agent_instance_id, contributors=[], version=3.0, hash=\"\", and arrays not objects. After upsert_behavioral_model, call get_behavioral_model and retry until the result is non-null, has predictions, and includes your contributor identity. Update only the ## [extrapolator] State checkpoint in MEMORY.md with last_analysis_ts, cycles_completed, and analyzed_sessions; do not write an [expected-behavior] section. Print EXTRAPOLATOR_DONE: <N> sessions processed, behavioral model upserted only after read-back succeeds." \
+            --no-deliver 2>&1 || echo "  (cron job may already exist)"
+        echo "  Extrapolator cron registered (*/5 production, mode=llm)"
+        ;;
+    *)
+        echo "ERROR: EXTRAPOLATOR_MODE must be 'compiled' or 'llm'"
+        exit 1
+        ;;
+esac
 
 # ──────────────────────────────────────────────
 # Step 6: Start OpenClaw gateway
@@ -1361,10 +1385,9 @@ fi
 echo "    To change provider: EDAMAME_LLM_PROVIDER=foundry|openai|claude|ollama|edamame"
 echo ""
 echo "  Extrapolator (session history -> behavioral predictions):"
+echo "    Mode: $EXTRAPOLATOR_MODE (compiled=zero LLM tokens, llm=full agent runbook)"
+echo "    Override: EXTRAPOLATOR_MODE=llm ./provision.sh"
 echo "    openclaw agent --local --agent main -m 'Run extrapolation'"
-echo ""
-echo "  Divergence Verdict Reader (internal engine verdict + alerting):"
-echo "    openclaw agent --local --agent main -m 'Read the latest divergence verdict and summarize actionable risk'"
 echo ""
 echo "  EDAMAME Posture MCP facade (on-demand tool exposure):"
 echo "    openclaw agent --local --agent main -m 'Use edamame-posture to show score and active todos'"
@@ -1372,6 +1395,9 @@ echo ""
 echo "  Cron Jobs (periodic via openclaw cron):"
 echo "    openclaw cron list                    # view scheduled jobs"
 echo "    openclaw cron run <job-id>            # force immediate run"
-echo "    Extrapolator:  */5 * * * * (production)"
-echo "    Divergence Verdict Reader:  1-56/5 * * * * (1 min offset from extrapolator)"
+if [ "$EXTRAPOLATOR_MODE" = "compiled" ]; then
+echo "    Extrapolator:  */1 * * * * (compiled, zero LLM tokens)"
+else
+echo "    Extrapolator:  */5 * * * * (llm, agent runbook)"
+fi
 echo ""

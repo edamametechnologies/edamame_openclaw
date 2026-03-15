@@ -1,88 +1,211 @@
 # EDAMAME for OpenClaw
 
-**EDAMAME Security integration for OpenClaw agents: MCP plugin, skills, and Lima VM provisioning.**
+**Runtime behavioral monitoring for [OpenClaw](https://openclaw.ai) agents,
+powered by [EDAMAME Security](https://edamame.tech).**
 
-This repository contains everything needed to add runtime behavioral monitoring
-to OpenClaw agents using [EDAMAME Posture](https://github.com/edamametechnologies/edamame_posture).
+## How It Works
+
+1. The `edamame-extrapolator` skill reads agent session history and publishes
+   behavioral models to EDAMAME via MCP.
+2. EDAMAME's internal divergence engine correlates intent predictions against
+   live system telemetry.
+3. Verdicts (`CLEAN`, `DIVERGENCE`, `NO_MODEL`, `STALE`) are available through
+   `get_divergence_verdict`.
+4. The `edamame-posture` skill exposes posture, remediation, and telemetry
+   endpoints as an on-demand MCP facade.
+
+## Extrapolator Modes
+
+The extrapolator supports two execution modes, selectable via the
+`EXTRAPOLATOR_MODE` environment variable at provisioning time:
+
+| Mode | LLM Tokens | Cron Cadence | How It Works |
+|------|------------|--------------|--------------|
+| `compiled` (default) | Zero OpenClaw LLM | Every 1 min | The `extrapolator_run_cycle` plugin tool deterministically extracts behavioral signals from session transcripts and forwards them to EDAMAME's internal LLM via `upsert_behavioral_model_from_raw_sessions`. |
+| `llm` | Full agent runbook | Every 5 min | The OpenClaw agent LLM reads transcripts, reasons about expected system behavior, and builds the behavioral model payload directly via `upsert_behavioral_model`. |
+
+Compiled mode is preferred for production: it eliminates per-cycle OpenClaw LLM
+costs while producing equivalent behavioral models. The LLM-driven mode remains
+available as a fallback when the edamame-mcp plugin is unavailable or for
+environments that benefit from richer agent reasoning.
+
+```bash
+EXTRAPOLATOR_MODE=compiled ./setup/provision.sh   # Default: zero LLM tokens
+EXTRAPOLATOR_MODE=llm ./setup/provision.sh        # Full agent LLM reasoning
+```
 
 ## Components
 
 ### MCP Plugin (`extensions/edamame-mcp/`)
 
-An OpenClaw plugin that exposes 31 EDAMAME MCP tools to agents:
-telemetry, posture, remediation, divergence, LAN scanning, breach detection, and more.
+An OpenClaw plugin exposing EDAMAME MCP tools to agents: telemetry,
+posture, remediation, divergence, LAN scanning, breach detection, and more.
+
+Key tools added in v2.0:
+- `extrapolator_run_cycle` -- compiled extrapolation cycle (zero OpenClaw LLM)
+- `upsert_behavioral_model_from_raw_sessions` -- forward raw transcripts to
+  EDAMAME's internal LLM
+
+### Scope Filters (Cross-Platform)
+
+The MCP plugin tells the EDAMAME divergence engine which sessions belong to
+OpenClaw using `scope_any_lineage_paths`. A session is in scope when any
+level of its process lineage (process, parent, or grandparent) matches:
+
+| Platform | Filter pattern | Matches |
+|---|---|---|
+| macOS (Homebrew) | `*/openclaw-gateway` | Compiled gateway binary |
+| macOS/Linux (npm) | `*/bin/openclaw` | npm global CLI entrypoint |
+| Linux (systemd) | `*/bin/openclaw` | systemd-managed gateway |
+| Windows (Sched Task) | `*/openclaw-gateway`, `*/bin/openclaw` | Gateway process |
+
+`scope_any_lineage_paths` is used instead of a single level because the
+gateway can appear as parent or grandparent depending on tool-chain depth.
 
 ### Skills (`skill/`)
 
 | Skill | Purpose |
 |-------|---------|
-| `edamame-extrapolator` | Reads session transcripts and publishes behavioral models via `upsert_behavioral_model` |
+| `edamame-extrapolator` | Reads session transcripts, publishes behavioral models. Tries `extrapolator_run_cycle` (compiled) first, falls back to LLM runbook. |
 | `edamame-posture` | Thin MCP facade over EDAMAME posture/remediation workflows |
 
-### Publishing (`publish.sh`)
+See [skill/README.md](skill/README.md) for architecture and distribution details.
+
+## Quick Start
+
+### Install from ClawHub
+
+```bash
+clawhub install edamame-extrapolator
+clawhub install edamame-posture
+```
+
+### Or install as plugin bundle
+
+```bash
+cp -r extensions/edamame-mcp ~/.openclaw/extensions/
+openclaw plugins enable edamame-mcp
+```
+
+## Publishing (maintainers)
 
 Publish skills to ClawHub and build the plugin bundle:
 
 ```bash
 ./publish.sh                    # Publish skills + build plugin bundle
 ./publish.sh --skills-only      # Publish to ClawHub only
-./publish.sh --plugin-only     # Build plugin bundle only (no ClawHub)
-./publish.sh --dry-run         # Show what would be done
+./publish.sh --plugin-only      # Build plugin bundle only
+./publish.sh --dry-run          # Show what would be done
 ```
 
 Prerequisites: `clawhub` CLI (`npm i -g clawhub`) and `clawhub login`.
 
-### Lima VM Setup (`setup/`)
+## Prerequisites
 
-Provision scripts for running the full EDAMAME + OpenClaw stack in a Lima VM:
+- [OpenClaw CLI](https://docs.openclaw.ai) installed
+- [EDAMAME Posture](https://github.com/edamametechnologies/edamame_posture)
+  running with MCP enabled (the skills connect to `http://127.0.0.1:3000/mcp`)
 
-```bash
-./setup/setup.sh          # Create and boot the Lima VM
-./setup/provision.sh      # Install EDAMAME Posture, configure LLM, start MCP
-./setup/start.sh          # Start the OpenClaw gateway
-./setup/stop.sh           # Stop services
-```
+### MCP Authentication (PSK)
 
-## Quick Start
+The `edamame-mcp` plugin authenticates to the EDAMAME MCP server using a
+pre-shared key (PSK). The plugin reads the PSK from:
 
-### Prerequisites
+1. `EDAMAME_MCP_PSK` environment variable (takes precedence), or
+2. `~/.edamame_psk` file (single-line, the PSK string)
 
-- [Lima](https://lima-vm.io/) installed on macOS
-- OpenClaw CLI installed
-- Secrets in `../secrets/` (see `setup/provision.sh` header for env vars)
-
-### Setup
+The file **must** be owner-read/write only:
 
 ```bash
-# Create and provision the Lima VM
-./setup/setup.sh
-
-# Or provision an existing VM
-limactl shell openclaw-security -- bash setup/provision.sh
+echo "<your-psk>" > ~/.edamame_psk
+chmod 600 ~/.edamame_psk
 ```
 
-### Configuration
+On macOS with the EDAMAME Security app, the PSK is configured under
+AI tab > MCP Server Settings > Pre-Shared Key. For `edamame_posture`, generate
+one with `edamame_posture background-mcp-generate-psk`.
 
-The provision script reads credentials from environment variables or `../secrets/`:
+## Running in a Lima VM
 
-| Variable | Source File | Purpose |
-|----------|------------|---------|
-| `EDAMAME_LLM_API_KEY` | `edamame-llm.env` | EDAMAME Portal LLM key |
-| `TELEGRAM_BOT_TOKEN` | `telegram.env` | Telegram notifications |
-| `TELEGRAM_CHAT_ID` | `telegram.env` | Telegram chat target |
-| `TELEGRAM_INTERACTIVE_ENABLED` | `telegram.env` | Bidirectional Telegram mode |
-| `TELEGRAM_ALLOWED_USER_IDS` | `telegram.env` | Authorized interactive users |
-| `SLACK_BOT_TOKEN` | `slack.env` | Slack notifications |
-| `SLACK_CHANNEL_ID` | `slack.env` | Slack channel target |
+An example Lima template is provided for running the full EDAMAME + OpenClaw
+stack in an isolated VM.
 
-See `setup/provision.sh` header for the full list of supported environment variables.
+### 1. Create and start the VM
+
+```bash
+limactl create --name=edamame-openclaw setup/lima-example-openclaw.yaml
+limactl start edamame-openclaw
+```
+
+### 2. Copy files into the VM
+
+```bash
+VM=edamame-openclaw
+
+limactl cp setup/provision.sh                          $VM:/tmp/provision.sh
+limactl cp -r skill                                    $VM:/tmp/skill
+limactl cp -r extensions                               $VM:/tmp/extensions
+```
+
+### 3. Provision
+
+```bash
+limactl shell $VM -- bash /tmp/provision.sh
+```
+
+The provisioner installs EDAMAME Posture, configures the LLM provider, installs
+skills and the MCP plugin, starts the OpenClaw gateway, and verifies end-to-end
+MCP connectivity.
+
+### Environment variables
+
+Set these before running `provision.sh` (or place them in `../secrets/*.env`):
+
+| Variable | Purpose |
+|----------|---------|
+| `EXTRAPOLATOR_MODE` | `compiled` (default, zero LLM tokens) or `llm` (agent runbook) |
+| `EDAMAME_LLM_API_KEY` | EDAMAME Portal LLM key (divergence engine) |
+| `EDAMAME_LLM_PROVIDER` | `edamame` (default), `openai`, `claude`, `ollama` |
+| `EDAMAME_TELEGRAM_BOT_TOKEN` | Telegram Bot API token for notifications |
+| `EDAMAME_TELEGRAM_CHAT_ID` | Telegram chat ID for alerts |
+| `EDAMAME_TELEGRAM_INTERACTIVE_ENABLED` | Enable interactive buttons (`true`/`1`) |
+| `EDAMAME_TELEGRAM_ALLOWED_USER_IDS` | Comma-separated authorized Telegram user IDs |
+| `EDAMAME_AGENTIC_SLACK_BOT_TOKEN` | Slack bot token |
+| `EDAMAME_AGENTIC_SLACK_ACTIONS_CHANNEL` | Slack channel for routine summaries |
+| `EDAMAME_AGENTIC_SLACK_ESCALATIONS_CHANNEL` | Slack channel for escalations |
+
+See `setup/provision.sh` header for the full list.
+
+### Port mapping (example template)
+
+| Guest | Host | Service |
+|-------|------|---------|
+| 40152 | 40153 | EDAMAME gRPC |
+| 18789 | 18790 | OpenClaw Dashboard |
+| 3000 | 3002 | EDAMAME MCP |
+
+Alternate ports avoid conflicts with the macOS EDAMAME app.
+
+## Setup Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `setup/provision.sh` | Full VM provisioning (EDAMAME + OpenClaw + skills + MCP) |
+| `setup/build_posture.sh` | Build `edamame_posture` natively inside a Lima VM |
+| `setup/verify_toolchain.sh` | Verify required tools are installed in the VM |
+| `setup/lima-example-openclaw.yaml` | Example Lima VM template |
 
 ## Related Repositories
 
 | Repository | Purpose |
 |------------|---------|
-| [openclaw_security](https://github.com/edamametechnologies/openclaw_security) | Dev/test/demo/CI monorepo |
-| [edamame_cursor](https://github.com/edamametechnologies/edamame_cursor) | Cursor developer workstation package |
-| [agent_security](https://github.com/edamametechnologies/agent_security) | Research paper and publication artifacts |
-| [edamame_posture](https://github.com/edamametechnologies/edamame_posture_cli) | EDAMAME Posture CLI |
-| [edamame_core](https://github.com/edamametechnologies/edamame_core) | Core security engine |
+| [edamame_cursor](https://github.com/edamametechnologies/edamame_cursor) | EDAMAME integration for Cursor IDE |
+| [agent_security](https://github.com/edamametechnologies/agent_security) | Research paper: two-plane runtime security (arXiv preprint) |
+| [edamame_security](https://github.com/edamametechnologies/edamame_security) | EDAMAME Security desktop/mobile app |
+| [edamame_posture](https://github.com/edamametechnologies/edamame_posture) | EDAMAME Posture CLI for CI/CD and servers |
+| [edamame_core_api](https://github.com/edamametechnologies/edamame_core_api) | EDAMAME Core public API documentation |
+| [threatmodels](https://github.com/edamametechnologies/threatmodels) | Public security benchmarks, policies, and threat models |
+
+## License
+
+Apache License 2.0 -- see [LICENSE](LICENSE).

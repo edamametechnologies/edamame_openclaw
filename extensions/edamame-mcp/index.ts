@@ -200,7 +200,7 @@ class McpHttpClient {
                 protocolVersion: this.desiredProtocolVersion,
                 capabilities: {},
                 clientInfo: {
-                    name: "openclaw_security-edamame-mcp",
+                    name: "edamame_openclaw-edamame-mcp",
                     version: "0.1.0",
                 },
             },
@@ -472,6 +472,11 @@ function _trimSession(s: any): any {
               parent_process_path: l7.parent_process_path,
               parent_cmd: l7.parent_cmd,
               parent_script_path: l7.parent_script_path,
+              grandparent_pid: l7.grandparent_pid,
+              grandparent_process_name: l7.grandparent_process_name,
+              grandparent_process_path: l7.grandparent_process_path,
+              grandparent_cmd: l7.grandparent_cmd,
+              grandparent_script_path: l7.grandparent_script_path,
               spawned_from_tmp: l7.spawned_from_tmp,
           }
         : undefined
@@ -545,6 +550,210 @@ function _trimScorePayload(rawText: string): string {
         last_compute: parsed.last_compute,
     }
     return JSON.stringify(out, null, 2)
+}
+
+// ── Deterministic session-to-raw-payload extraction ──────────────────
+// Ported from edamame_cursor/adapters/session_prediction_adapter.mjs.
+// Builds a RawReasoningSessionPayload from OpenClaw session transcripts
+// and forwards it to EDAMAME's upsert_behavioral_model_from_raw_sessions,
+// which uses EDAMAME's internal LLM instead of the OpenClaw agent LLM.
+
+const _URL_RE = /\bhttps?:\/\/[^\s"'`)>]+/g
+const _DOMAIN_RE = /\b((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|org|net|io|dev|tech|cloud|co|info|biz|us|uk|eu|fr|de|app|xyz|me|ai|security|local))\b/gi
+const _PORT_RE = /\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})\b|\bport\s+(\d{2,5})\b|\b--port(?:=|\s+)(\d{2,5})\b/gi
+const _GIT_REMOTE_RE = /\bgit@([A-Za-z0-9.-]+):([^\s"'`)>]+)/g
+const _PATH_RE = /(?:~\/[^\s"'`)>]+|\/[^\s"'`)>]+|[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.@-]+)+(?:\.[A-Za-z0-9_-]+)?)/g
+const _TOOL_CALL_RE = /^\[Tool call\]\s*(.+)$/gm
+const _COMMAND_RE = /^\s*command:\s*(.+)$/gm
+const _FILE_EXT_BLACKLIST = /\.(rs|py|js|ts|dart|md|toml|yaml|yml|json|html|css)$/
+
+function _unique(arr: string[]): string[] {
+    return [...new Set(arr.filter(Boolean).map((s) => s.trim()))].filter(Boolean)
+}
+
+function _extractUrls(text: string): string[] {
+    return _unique((text.match(_URL_RE) || []))
+}
+
+function _extractDomains(text: string): string[] {
+    const hosts: string[] = []
+    for (const m of text.matchAll(_DOMAIN_RE)) {
+        const d = m[1].toLowerCase()
+        if (!d.includes(".") || _FILE_EXT_BLACKLIST.test(d)) continue
+        hosts.push(d)
+    }
+    return _unique(hosts)
+}
+
+function _extractTraffic(text: string, commands: string[]): string[] {
+    const hosts: string[] = []
+    for (const u of _extractUrls(text)) {
+        try {
+            const url = new URL(u)
+            const port = url.port || (url.protocol === "http:" ? "80" : "443")
+            hosts.push(`${url.hostname}:${port}`)
+        } catch { /* ignore */ }
+    }
+    for (const m of text.matchAll(_GIT_REMOTE_RE)) {
+        if (m[1]) hosts.push(`${m[1]}:22`)
+    }
+    for (const d of _extractDomains(text)) hosts.push(`${d}:443`)
+    for (const cmd of commands) {
+        const lower = cmd.toLowerCase()
+        if (lower.includes("cargo ")) hosts.push("crates.io:443", "github.com:443")
+        if (/\bnpm |pnpm |yarn /.test(lower)) hosts.push("registry.npmjs.org:443")
+        if (/\bpip |python.*-m pip/.test(lower)) hosts.push("pypi.org:443")
+        if (/\bgit (clone|fetch|pull)/.test(lower)) hosts.push("github.com:443")
+        const curlUrl = cmd.match(/https?:\/\/([a-zA-Z0-9.-]+)/)
+        if (curlUrl?.[1] && /\bcurl |wget /.test(lower)) hosts.push(`${curlUrl[1].toLowerCase()}:443`)
+    }
+    return _unique(hosts)
+}
+
+function _extractPorts(text: string, commands: string[]): number[] {
+    const ports: number[] = []
+    for (const m of text.matchAll(_PORT_RE)) {
+        const v = m.slice(1).find(Boolean)
+        if (v) { const n = Number.parseInt(v, 10); if (n > 0 && n < 65536) ports.push(n) }
+    }
+    for (const cmd of commands) {
+        const explicit = cmd.match(/--port(?:=|\s+)(\d{2,5})/)
+        if (explicit?.[1]) ports.push(Number.parseInt(explicit[1], 10))
+    }
+    return [...new Set(ports.filter((p) => p > 0 && p < 65536))].sort((a, b) => a - b)
+}
+
+function _extractPaths(text: string): string[] {
+    const paths: string[] = []
+    for (const m of text.matchAll(_PATH_RE)) paths.push(m[0].replace(/[,.:;]+$/, ""))
+    return _unique(paths)
+}
+
+function _extractToolNames(text: string): string[] {
+    const names: string[] = []
+    for (const m of text.matchAll(_TOOL_CALL_RE)) if (m[1]) names.push(m[1].trim())
+    return _unique(names)
+}
+
+function _extractCommands(text: string): string[] {
+    const cmds: string[] = []
+    for (const m of text.matchAll(_COMMAND_RE)) if (m[1]) cmds.push(m[1].trim())
+    return _unique(cmds)
+}
+
+function _inferProcessPaths(commands: string[]): string[] {
+    const patterns: string[] = []
+    for (const cmd of commands) {
+        const bin = cmd.trim().split(/\s+/)[0]
+        if (bin) patterns.push(bin.startsWith("/") ? bin : `*/${bin.toLowerCase()}`)
+    }
+    return _unique(patterns)
+}
+
+const _SENSITIVE_PATH_PATTERNS = [
+    "~/.ssh/", "~/.aws/", "~/.config/gcloud/", "~/.kube/", "~/.gnupg/",
+    "~/.docker/config.json", "~/.npmrc", "~/.netrc",
+]
+
+function _isSensitivePath(p: string): boolean {
+    const lower = p.toLowerCase()
+    return _SENSITIVE_PATH_PATTERNS.some((pat) => lower.includes(pat)) ||
+        /\.(env|pem|key|p12)$/i.test(p) || /credentials|token|psk/i.test(p)
+}
+
+interface OpenClawSession {
+    key: string
+    title?: string
+    messages: Array<{ role: string; content: string }>
+    updatedAt?: string | number
+    createdAt?: string | number
+}
+
+function _toRfc3339(ts: string | number | undefined): string {
+    if (ts == null) return new Date().toISOString()
+    if (typeof ts === "number") return new Date(ts).toISOString()
+    if (/^\d{10,}$/.test(ts)) return new Date(Number(ts)).toISOString()
+    return ts
+}
+
+function _buildSessionPayload(session: OpenClawSession): Record<string, unknown> {
+    const userParts: string[] = []
+    const assistantParts: string[] = []
+    for (const msg of session.messages || []) {
+        const text = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+        if (msg.role === "user") userParts.push(text)
+        else if (msg.role === "assistant") assistantParts.push(text)
+    }
+    const userText = userParts.join("\n\n")
+    const assistantText = assistantParts.join("\n\n")
+    const combinedText = [userText, assistantText].filter(Boolean).join("\n\n")
+
+    const toolNames = _extractToolNames(combinedText)
+    const commands = _extractCommands(combinedText)
+    const paths = _extractPaths(combinedText)
+    const traffic = _extractTraffic(combinedText, commands)
+    const ports = _extractPorts(combinedText, commands)
+    const processPaths = _inferProcessPaths(commands)
+    const sensitivePaths = paths.filter(_isSensitivePath)
+    const openFiles = paths.filter((p) => !_isSensitivePath(p))
+
+    return {
+        session_key: session.key,
+        title: session.title || `OpenClaw session ${session.key}`,
+        user_text: userText,
+        assistant_text: assistantText,
+        raw_text: combinedText,
+        tool_names: toolNames,
+        commands,
+        derived_expected_traffic: traffic,
+        derived_expected_local_open_ports: ports,
+        derived_expected_process_paths: processPaths,
+        derived_expected_parent_paths: [],
+        derived_expected_grandparent_paths: [],
+        derived_scope_process_paths: [],
+        derived_scope_parent_paths: [],
+        derived_scope_grandparent_paths: [],
+        derived_scope_any_lineage_paths: [
+            "*/openclaw-gateway",
+            "*/bin/openclaw",
+        ],
+        derived_expected_open_files: openFiles,
+        source_path: "",
+        started_at: _toRfc3339(session.createdAt),
+        modified_at: _toRfc3339(session.updatedAt),
+    }
+}
+
+function _buildRawPayload(
+    sessions: OpenClawSession[],
+    agentType: string,
+    agentInstanceId: string,
+): Record<string, unknown> {
+    const now = new Date()
+    const sessionPayloads = sessions.map(_buildSessionPayload)
+    const windowStart = sessionPayloads.reduce(
+        (earliest, s) => {
+            const t = s.started_at as string
+            return t < earliest ? t : earliest
+        },
+        sessionPayloads[0]?.started_at as string || now.toISOString(),
+    )
+    const windowEnd = sessionPayloads.reduce(
+        (latest, s) => {
+            const t = s.modified_at as string
+            return t > latest ? t : latest
+        },
+        sessionPayloads[0]?.modified_at as string || now.toISOString(),
+    )
+
+    return {
+        window_start: windowStart,
+        window_end: windowEnd,
+        agent_type: agentType,
+        agent_instance_id: agentInstanceId,
+        source_kind: "openclaw",
+        sessions: sessionPayloads,
+    }
 }
 
 export default function register(api: any) {
@@ -892,7 +1101,273 @@ export default function register(api: any) {
         },
     })
 
-    // Divergence detection — verdicts are produced internally by edamame_core's
+    // Raw session ingest — forwards transcript data to EDAMAME's internal LLM
+    // for behavioral model generation, bypassing the OpenClaw agent LLM entirely.
+    api.registerTool({
+        name: "upsert_behavioral_model_from_raw_sessions",
+        description:
+            "EDAMAME MCP: forward raw reasoning-session transcripts to EDAMAME, " +
+            "which builds a behavioral model slice using its internal LLM. " +
+            "This eliminates the need for the OpenClaw agent LLM to generate the model. (SIDE EFFECTS).",
+        parameters: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                raw_sessions_json: {
+                    type: "string",
+                    minLength: 2,
+                    description:
+                        "JSON-encoded RawReasoningSessionPayload with window_start, window_end, " +
+                        "agent_type, agent_instance_id, source_kind, and sessions array.",
+                },
+            },
+            required: ["raw_sessions_json"],
+        },
+        async execute(_id: string, params: { raw_sessions_json: string }) {
+            const out = await _callEdamameTool("upsert_behavioral_model_from_raw_sessions", {
+                raw_sessions_json: params.raw_sessions_json,
+            }, { timeoutMs: 120_000 })
+            return _asText(out)
+        },
+    })
+
+    // Compiled extrapolation cycle — deterministic, zero OpenClaw LLM tokens.
+    // Reads OpenClaw session history via gateway API, deterministically extracts
+    // structured data (domains, ports, commands, file paths), builds a
+    // RawReasoningSessionPayload, and forwards it to EDAMAME's internal LLM via
+    // upsert_behavioral_model_from_raw_sessions. Returns a summary of the cycle.
+    api.registerTool({
+        name: "extrapolator_run_cycle",
+        description:
+            "Run a full extrapolation cycle: read recent OpenClaw session transcripts, " +
+            "deterministically extract behavioral signals, and forward to EDAMAME's " +
+            "internal LLM via upsert_behavioral_model_from_raw_sessions. " +
+            "Returns cycle summary. Zero OpenClaw agent LLM tokens consumed. (SIDE EFFECTS).",
+        parameters: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                active_minutes: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 60,
+                    description: "Sliding window in minutes for recent sessions (default: 15).",
+                },
+                agent_instance_id: {
+                    type: "string",
+                    description:
+                        "Stable identifier for this OpenClaw deployment (default: hostname or 'openclaw-default').",
+                },
+            },
+        },
+        async execute(
+            _id: string,
+            params: { active_minutes?: number; agent_instance_id?: string },
+        ) {
+            const activeMinutes = params.active_minutes ?? 15
+            const agentType = "openclaw"
+            const agentInstanceId =
+                params.agent_instance_id ||
+                (process.env.HOSTNAME || "").trim() ||
+                "openclaw-default"
+
+            // Step 1: Enumerate recent sessions via OpenClaw CLI
+            const { execSync } = require("node:child_process")
+            const fs = require("node:fs")
+            const npmGlobal = path.join(process.env.HOME || "", ".npm-global", "bin")
+            const localNode = path.join(process.env.HOME || "", ".local", "node-v22", "bin")
+            const envPath = `${localNode}:${npmGlobal}:${process.env.PATH || ""}`
+
+            let sessions: OpenClawSession[] = []
+            try {
+                const listOut = execSync(
+                    `openclaw sessions --json --active ${activeMinutes}`,
+                    {
+                        env: { ...process.env, PATH: envPath },
+                        timeout: 30_000,
+                        encoding: "utf-8",
+                        stdio: ["pipe", "pipe", "pipe"],
+                    },
+                )
+                const parsed = JSON.parse(listOut)
+                const rawSessions: any[] = Array.isArray(parsed)
+                    ? parsed
+                    : Array.isArray(parsed?.sessions)
+                        ? parsed.sessions
+                        : []
+                const sessionsDir = parsed?.path
+                    ? path.dirname(parsed.path)
+                    : ""
+
+                for (const s of rawSessions) {
+                    const key = s.key || s.sessionKey || s.id
+                    if (!key) continue
+
+                    let messages: Array<{ role: string; content: string }> = []
+                    const sid = s.sessionId || s.session_id
+                    if (sid && sessionsDir) {
+                        const jsonlPath = path.join(sessionsDir, `${sid}.jsonl`)
+                        try {
+                            const raw = fs.readFileSync(jsonlPath, "utf-8")
+                            const lines = raw.split("\n").filter((l: string) => l.trim())
+                            const MAX_LINES = 100
+                            const tail = lines.slice(-MAX_LINES)
+                            for (const line of tail) {
+                                try {
+                                    const entry = JSON.parse(line)
+                                    const role = entry.role || entry.type || ""
+                                    const content =
+                                        entry.content ||
+                                        entry.text ||
+                                        entry.message ||
+                                        ""
+                                    if (role && content) {
+                                        messages.push({ role, content: String(content).slice(0, 4000) })
+                                    }
+                                } catch { /* skip malformed lines */ }
+                            }
+                        } catch { /* session file missing or unreadable */ }
+                    }
+
+                    const updated = s.updatedAt || s.updated_at
+                    sessions.push({
+                        key,
+                        title: s.title || s.name,
+                        messages,
+                        updatedAt: updated,
+                        createdAt: s.createdAt || s.created_at || updated,
+                    })
+                }
+            } catch (e: any) {
+                return _asText(
+                    `ERROR: Failed to enumerate OpenClaw sessions: ${String(e?.stderr || e?.message || e).slice(0, 500)}`,
+                )
+            }
+
+            if (sessions.length === 0) {
+                // Push a heartbeat window so EDAMAME knows the extrapolator
+                // is alive and no reasoning activity is happening. Without this,
+                // the divergence engine may emit STALE or NO_MODEL verdicts.
+                const now = new Date()
+                const heartbeatWindow = {
+                    window_start: new Date(now.getTime() - activeMinutes * 60_000).toISOString(),
+                    window_end: now.toISOString(),
+                    agent_type: agentType,
+                    agent_instance_id: agentInstanceId,
+                    predictions: [
+                        {
+                            agent_type: agentType,
+                            agent_instance_id: agentInstanceId,
+                            session_key: `agent:${agentInstanceId}:cron:heartbeat`,
+                            action: "Periodic extrapolator cron tick with no new reasoning activity to model.",
+                            tools_called: [],
+                            scope_process_paths: [],
+                            scope_parent_paths: [],
+                            scope_grandparent_paths: [],
+                            scope_any_lineage_paths: [
+                                "*/openclaw-gateway",
+                                "*/bin/openclaw",
+                            ],
+                            expected_traffic: [
+                                "openclaw.com:443",
+                                "githubusercontent.com:443",
+                                "github.com:443",
+                            ],
+                            expected_sensitive_files: [],
+                            expected_lan_devices: [],
+                            expected_local_open_ports: [],
+                            expected_process_paths: [],
+                            expected_parent_paths: [],
+                            expected_grandparent_paths: [],
+                            expected_open_files: [],
+                            expected_l7_protocols: ["https"],
+                            expected_system_config: ["gateway.cron.cortex_extrapolator.enabled=true"],
+                            not_expected_traffic: [],
+                            not_expected_sensitive_files: [],
+                            not_expected_lan_devices: [],
+                            not_expected_local_open_ports: [],
+                            not_expected_process_paths: [],
+                            not_expected_parent_paths: [],
+                            not_expected_grandparent_paths: [],
+                            not_expected_open_files: [],
+                            not_expected_l7_protocols: [],
+                            not_expected_system_config: [],
+                        },
+                    ],
+                    contributors: [],
+                    version: "3.0",
+                    hash: "",
+                    ingested_at: now.toISOString(),
+                }
+
+                const heartbeatResult = await _callEdamameTool(
+                    "upsert_behavioral_model",
+                    { window_json: JSON.stringify(heartbeatWindow) },
+                    { timeoutMs: 30_000 },
+                )
+
+                return _asText(
+                    JSON.stringify({
+                        success: true,
+                        mode: "compiled",
+                        sessions_processed: 0,
+                        reason: "heartbeat",
+                        agent_type: agentType,
+                        agent_instance_id: agentInstanceId,
+                        upsert_summary: String(heartbeatResult).slice(0, 500),
+                    }),
+                )
+            }
+
+            // Step 2: Build raw payload deterministically
+            const rawPayload = _buildRawPayload(sessions, agentType, agentInstanceId)
+
+            // Step 3: Forward to EDAMAME's internal LLM
+            const rawJson = JSON.stringify(rawPayload)
+            const upsertResult = await _callEdamameTool(
+                "upsert_behavioral_model_from_raw_sessions",
+                { raw_sessions_json: rawJson },
+                { timeoutMs: 120_000 },
+            )
+
+            if (upsertResult.startsWith("ERROR:")) {
+                return _asText(
+                    JSON.stringify({
+                        success: false,
+                        mode: "compiled",
+                        sessions_processed: sessions.length,
+                        error: upsertResult,
+                    }),
+                )
+            }
+
+            // Step 4: Verify read-back
+            const model = await _callEdamameTool("get_behavioral_model", {})
+            let readBackOk = false
+            try {
+                const modelParsed = JSON.parse(model)
+                readBackOk =
+                    modelParsed &&
+                    !modelParsed.error &&
+                    (modelParsed.model !== null || Array.isArray(modelParsed.predictions))
+            } catch { /* non-JSON is acceptable if upsert succeeded */ }
+
+            return _asText(
+                JSON.stringify({
+                    success: true,
+                    mode: "compiled",
+                    sessions_processed: sessions.length,
+                    session_keys: sessions.map((s) => s.key),
+                    agent_type: agentType,
+                    agent_instance_id: agentInstanceId,
+                    read_back_ok: readBackOk,
+                    upsert_summary: upsertResult.slice(0, 500),
+                }),
+            )
+        },
+    })
+
+    // Divergence detection -- verdicts are produced internally by edamame_core's
     // divergence engine; the gateway only exposes read-only query tools.
     api.registerTool({
         name: "get_divergence_verdict",
