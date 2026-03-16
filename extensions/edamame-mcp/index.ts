@@ -724,6 +724,36 @@ function _buildSessionPayload(session: OpenClawSession): Record<string, unknown>
     }
 }
 
+function _collapseRunSubSessions(sessions: OpenClawSession[]): OpenClawSession[] {
+    const RUN_SEP = ":run:"
+    const parentMap = new Map<string, OpenClawSession>()
+    const orphans: OpenClawSession[] = []
+
+    for (const s of sessions) {
+        const runIdx = s.key.indexOf(RUN_SEP)
+        if (runIdx === -1) {
+            parentMap.set(s.key, { ...s, messages: [...s.messages] })
+        }
+    }
+
+    for (const s of sessions) {
+        const runIdx = s.key.indexOf(RUN_SEP)
+        if (runIdx === -1) continue
+        const parentKey = s.key.slice(0, runIdx)
+        const parent = parentMap.get(parentKey)
+        if (parent) {
+            parent.messages.push(...s.messages)
+            const childUpdated = _toRfc3339(s.updatedAt)
+            const parentUpdated = _toRfc3339(parent.updatedAt)
+            if (childUpdated > parentUpdated) parent.updatedAt = s.updatedAt
+        } else {
+            orphans.push(s)
+        }
+    }
+
+    return [...parentMap.values(), ...orphans]
+}
+
 function _buildRawPayload(
     sessions: OpenClawSession[],
     agentType: string,
@@ -755,6 +785,25 @@ function _buildRawPayload(
         sessions: sessionPayloads,
     }
 }
+
+export {
+    _filterGetSessionsPayload,
+    _trimScorePayload,
+    _trimSession,
+    _trimThreat,
+    _buildSessionPayload,
+    _buildRawPayload,
+    _collapseRunSubSessions,
+    _extractTraffic,
+    _extractToolNames,
+    _extractCommands,
+    _extractPaths,
+    _isSensitivePath,
+    _toEpochMs,
+    _sessionActivityMs,
+    _toRfc3339,
+}
+export type { GetSessionsArgs, OpenClawSession }
 
 export default function register(api: any) {
     // Read-only surfaces used by the two-plane monitor + benchmark harness.
@@ -1238,6 +1287,12 @@ export default function register(api: any) {
                         createdAt: s.createdAt || s.created_at || updated,
                     })
                 }
+
+                // Collapse :run: sub-sessions into their parent cron session.
+                // openclaw enumerates both the parent cron window and each
+                // individual run as separate sessions. Without collapsing, the
+                // LLM creates one empty prediction per entry.
+                sessions = _collapseRunSubSessions(sessions)
             } catch (e: any) {
                 return _asText(
                     `ERROR: Failed to enumerate OpenClaw sessions: ${String(e?.stderr || e?.message || e).slice(0, 500)}`,
