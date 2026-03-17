@@ -185,7 +185,17 @@ Alternate ports avoid conflicts with the macOS EDAMAME app.
 | Repository | Purpose |
 |------------|---------|
 | [edamame_cursor](https://github.com/edamametechnologies/edamame_cursor) | EDAMAME integration for Cursor IDE |
+| [edamame_claude_code](https://github.com/edamametechnologies/edamame_claude_code) | EDAMAME integration for Claude Code |
 | [agent_security](https://github.com/edamametechnologies/agent_security) | Research paper: two-plane runtime security (arXiv preprint) |
+
+### Sibling Agent Integrations
+
+- **edamame_claude_code** (Claude Code): Easy install via Claude Code marketplace:
+  ```shell
+  /plugin marketplace add edamametechnologies/edamame_claude_code
+  /plugin install edamame@edamame-security
+  ```
+- **edamame_cursor** (Cursor): See [edamame_cursor README](https://github.com/edamametechnologies/edamame_cursor) for Cursor Marketplace or manual install (pending marketplace publication).
 | [edamame_security](https://github.com/edamametechnologies/edamame_security) | EDAMAME Security desktop/mobile app |
 | [edamame_posture](https://github.com/edamametechnologies/edamame_posture) | EDAMAME Posture CLI for CI/CD and servers |
 | [edamame_core_api](https://github.com/edamametechnologies/edamame_core_api) | EDAMAME Core public API documentation |
