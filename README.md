@@ -170,6 +170,10 @@ See `setup/provision.sh` header for the full list.
 
 Alternate ports avoid conflicts with the macOS EDAMAME app.
 
+## Demo Scripts
+
+The `demo/` directory contains user-space injector scripts that trigger detectable security events (divergence, token exfiltration, sandbox escape, blacklisted communication). See [demo/README.md](demo/README.md) for usage.
+
 ## Setup Scripts
 
 | Script | Purpose |
