@@ -7,13 +7,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-name: Plugin unit tests
+name: Plugin install and unit tests
 
 permissions: read-all
 
 jobs:
   test:
-    name: Unit tests
+    name: Install and test
     runs-on: ubuntu-latest
 
     steps:
@@ -35,5 +35,45 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
+      - name: Validate OpenClaw plugin manifest
+        run: |
+          echo "--- Validating OpenClaw plugin manifest ---"
+          test -f extensions/edamame/openclaw.plugin.json || { echo "FAIL: openclaw.plugin.json not found"; exit 1; }
+          node -e "
+            const m = require('./extensions/edamame/openclaw.plugin.json');
+            console.log('Plugin id:', m.id);
+            console.log('Plugin name:', m.name);
+            if (!m.id || !m.name) { console.error('FAIL: missing id or name'); process.exit(1); }
+          "
+          echo "--- OpenClaw plugin manifest valid ---"
+
+      - name: Verify plugin structure
+        run: |
+          echo "--- Checking plugin file structure ---"
+          for f in \
+            extensions/edamame/index.ts \
+            skill/edamame-extrapolator/SKILL.md \
+            skill/edamame-posture/SKILL.md \
+            setup/provision.sh \
+            setup/build_posture.sh; do
+            test -f "$f" || { echo "FAIL: $f not found"; exit 1; }
+            echo "  OK: $f"
+          done
+          echo "--- Plugin structure valid ---"
+
+      - name: Run unit tests
         run: npm test
+
+      - name: Verify MCP plugin TypeScript exports
+        run: |
+          echo "--- Checking MCP plugin exports ---"
+          node --import tsx -e "
+            const m = require('./extensions/edamame/index.ts');
+            const exports = Object.keys(m).filter(k => typeof m[k] === 'function');
+            console.log('Exported functions:', exports.length);
+            for (const fn of ['_filterGetSessionsPayload', '_trimScorePayload', '_buildSessionPayload', '_buildRawPayload']) {
+              if (!exports.includes(fn)) { console.error('FAIL: missing export ' + fn); process.exit(1); }
+              console.log('  OK: ' + fn);
+            }
+          "
+          echo "--- MCP plugin exports valid ---"
