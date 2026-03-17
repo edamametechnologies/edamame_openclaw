@@ -1,3 +1,4 @@
 .DS_Store
 *.log
 .cursor/
+__pycache__/
