@@ -15,8 +15,8 @@ import {
     _toEpochMs,
     _sessionActivityMs,
     _toRfc3339,
-} from "../extensions/edamame-mcp/index.ts";
-import type { GetSessionsArgs, OpenClawSession } from "../extensions/edamame-mcp/index.ts";
+} from "../extensions/edamame/index.ts";
+import type { GetSessionsArgs, OpenClawSession } from "../extensions/edamame/index.ts";
 
 // ── _filterGetSessionsPayload ────────────────────────────────────────
 

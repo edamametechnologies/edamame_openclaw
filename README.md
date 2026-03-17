@@ -26,7 +26,7 @@ The extrapolator supports two execution modes, selectable via the
 
 Compiled mode is preferred for production: it eliminates per-cycle OpenClaw LLM
 costs while producing equivalent behavioral models. The LLM-driven mode remains
-available as a fallback when the edamame-mcp plugin is unavailable or for
+available as a fallback when the edamame plugin is unavailable or for
 environments that benefit from richer agent reasoning.
 
 ```bash
@@ -36,7 +36,7 @@ EXTRAPOLATOR_MODE=llm ./setup/provision.sh        # Full agent LLM reasoning
 
 ## Components
 
-### MCP Plugin (`extensions/edamame-mcp/`)
+### MCP Plugin (`extensions/edamame/`)
 
 An OpenClaw plugin exposing EDAMAME MCP tools to agents: telemetry,
 posture, remediation, divergence, LAN scanning, breach detection, and more.
@@ -73,32 +73,12 @@ See [skill/README.md](skill/README.md) for architecture and distribution details
 
 ## Quick Start
 
-### Install from ClawHub
+Install the plugin bundle:
 
 ```bash
-clawhub install edamame-extrapolator
-clawhub install edamame-posture
+cp -r extensions/edamame ~/.openclaw/extensions/
+openclaw plugins enable edamame
 ```
-
-### Or install as plugin bundle
-
-```bash
-cp -r extensions/edamame-mcp ~/.openclaw/extensions/
-openclaw plugins enable edamame-mcp
-```
-
-## Publishing (maintainers)
-
-Publish skills to ClawHub and build the plugin bundle:
-
-```bash
-./publish.sh                    # Publish skills + build plugin bundle
-./publish.sh --skills-only      # Publish to ClawHub only
-./publish.sh --plugin-only      # Build plugin bundle only
-./publish.sh --dry-run          # Show what would be done
-```
-
-Prerequisites: `clawhub` CLI (`npm i -g clawhub`) and `clawhub login`.
 
 ## Prerequisites
 
@@ -106,24 +86,28 @@ Prerequisites: `clawhub` CLI (`npm i -g clawhub`) and `clawhub login`.
 - [EDAMAME Posture](https://github.com/edamametechnologies/edamame_posture)
   running with MCP enabled (the skills connect to `http://127.0.0.1:3000/mcp`)
 
-### MCP Authentication (PSK)
+### MCP Authentication
 
-The `edamame-mcp` plugin authenticates to the EDAMAME MCP server using a
-pre-shared key (PSK). The plugin reads the PSK from:
+The MCP server supports two auth modes; both use the same credential file
+(`~/.edamame_psk`) and both are sent as Bearer tokens:
+
+- **App-mediated pairing** (developer workstations with the EDAMAME app): Run
+  `./setup/pair.sh`, approve in the app. The credential is a per-client
+  `edm_mcp_...` token.
+- **Legacy shared PSK** (CLI/VM/daemon with `edamame_posture`): Generate with
+  `edamame_posture background-mcp-generate-psk`, write to `~/.edamame_psk`.
+  `setup/provision.sh` handles this for Lima VMs.
+
+The plugin reads the credential from:
 
 1. `EDAMAME_MCP_PSK` environment variable (takes precedence), or
-2. `~/.edamame_psk` file (single-line, the PSK string)
+2. `~/.edamame_psk` file (single-line, the PSK or token string)
 
 The file **must** be owner-read/write only:
 
 ```bash
-echo "<your-psk>" > ~/.edamame_psk
 chmod 600 ~/.edamame_psk
 ```
-
-On macOS with the EDAMAME Security app, the PSK is configured under
-AI tab > MCP Server Settings > Pre-Shared Key. For `edamame_posture`, generate
-one with `edamame_posture background-mcp-generate-psk`.
 
 ## Running in a Lima VM
 
@@ -191,6 +175,7 @@ Alternate ports avoid conflicts with the macOS EDAMAME app.
 | Script | Purpose |
 |--------|---------|
 | `setup/provision.sh` | Full VM provisioning (EDAMAME + OpenClaw + skills + MCP) |
+| `setup/pair.sh` | App-mediated pairing for developer workstations (EDAMAME app) |
 | `setup/build_posture.sh` | Build `edamame_posture` natively inside a Lima VM |
 | `setup/verify_toolchain.sh` | Verify required tools are installed in the VM |
 | `setup/lima-example-openclaw.yaml` | Example Lima VM template |

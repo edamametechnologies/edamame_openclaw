@@ -4,28 +4,12 @@ Runtime security skills for OpenClaw agents, powered by EDAMAME Posture telemetr
 
 ## Distribution
 
-Skills are distributed through two channels.
-
-### ClawHub (individual skills)
-
-Each skill is published independently to [ClawHub](https://clawhub.ai/):
+Skills are distributed as a plugin bundle. The `edamame` plugin bundles
+both skills alongside the MCP bridge:
 
 ```bash
-clawhub install edamame-extrapolator
-clawhub install edamame-posture
-```
-
-Skills that require EDAMAME Posture declare `requires.bins: ["edamame_posture"]`
-in metadata. OpenClaw only enables these skills when `edamame_posture` is on
-`PATH`.
-
-### Plugin bundle (all-in-one)
-
-The `edamame-mcp` plugin bundles both skills alongside the MCP bridge:
-
-```bash
-cp -r extensions/edamame-mcp ~/.openclaw/extensions/
-openclaw plugins enable edamame-mcp
+cp -r extensions/edamame ~/.openclaw/extensions/
+openclaw plugins enable edamame
 ```
 
 ## Architecture
@@ -135,20 +119,11 @@ Loop lifecycle control is intentionally not exposed via MCP. Use
 `edamame_posture divergence-start|divergence-stop` and
 `edamame_posture agentic-start|agentic-stop`.
 
-## Publishing
-
-```bash
-./publish.sh                    # Publish all skills + build plugin bundle
-./publish.sh --skills-only      # Publish skills to ClawHub only
-./publish.sh --plugin-only      # Build plugin bundle only
-./publish.sh --dry-run          # Show planned actions
-```
-
 ## Provisioning
 
 ```bash
 ./setup/provision.sh    # Local VM setup
-./ci/provision.sh       # CI environment
+./setup/pair.sh         # App-mediated pairing (developer workstations)
 ```
 
 Provisioning installs both skills. By default, only extrapolation is

@@ -200,7 +200,7 @@ class McpHttpClient {
                 protocolVersion: this.desiredProtocolVersion,
                 capabilities: {},
                 clientInfo: {
-                    name: "edamame_openclaw-edamame-mcp",
+                    name: "edamame_openclaw-edamame",
                     version: "0.1.0",
                 },
             },
@@ -337,7 +337,7 @@ async function _callEdamameTool(
 ): Promise<string> {
     const timeoutMs = options?.timeoutMs ?? 60_000
     const client = _getClient()
-    if (!client) return "ERROR: missing EDAMAME MCP PSK (~/.edamame_psk or EDAMAME_MCP_PSK)"
+    if (!client) return "ERROR: missing EDAMAME MCP credential (~/.edamame_psk or EDAMAME_MCP_PSK). Run setup/pair.sh for app-mediated pairing or setup/provision.sh for VM/daemon."
 
     try {
         return await client.callTool(toolName, kvArgs, timeoutMs)

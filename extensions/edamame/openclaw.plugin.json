@@ -1,5 +1,5 @@
 {
-  "id": "edamame-mcp",
+  "id": "edamame",
   "name": "EDAMAME MCP Tools",
   "description": "Expose EDAMAME Posture MCP tools as native OpenClaw tools. Includes compiled extrapolator_run_cycle (zero OpenClaw LLM tokens) and upsert_behavioral_model_from_raw_sessions for the two-plane security model. Bundles the edamame-extrapolator and edamame-posture skills.",
   "version": "1.0.0",

@@ -6,7 +6,7 @@
 #   1a. Loads EDAMAME internal LLM credentials (divergence engine)
 #   2.  Starts EDAMAME Posture daemon with agentic features + MCP server
 #   3.  Configures OpenClaw runtime (local gateway)
-#   4.  Installs the OpenClaw plugin `edamame-mcp` (native EDAMAME MCP tools)
+#   4.  Installs the OpenClaw plugin `edamame` (native EDAMAME MCP tools)
 #   5.  Installs the extrapolator + edamame-posture skills (divergence detection is internal)
 #   6.  Starts the OpenClaw gateway
 #   7.  Verifies OpenClaw-native MCP tool path
@@ -637,7 +637,8 @@ if ! sudo test -f /etc/sysctl.d/99-ebpf.conf || ! sudo grep -q "perf_event_paran
     } | sudo tee /etc/sysctl.d/99-ebpf.conf >/dev/null
 fi
 
-# Generate PSK for MCP authentication (min 32 chars)
+# Generate PSK for MCP authentication (VM/daemon path).
+# Developer workstations with the EDAMAME app should use setup/pair.sh instead.
 # IMPORTANT: normalize to a single line (some generators wrap base64 with newlines).
 PSK_RAW="$(edamame_posture background-mcp-generate-psk 2>/dev/null || openssl rand -base64 32)"
 PSK="$(printf "%s\n" "$PSK_RAW" | awk 'NF && $1 !~ /^#/ { print; exit }')"
@@ -922,7 +923,7 @@ PY
 
 # Write OpenClaw config
 # EDAMAME MCP tools are exposed to the agent as native OpenClaw tools via the
-# local `edamame-mcp` OpenClaw plugin (installed below).
+# local `edamame` OpenClaw plugin (installed below).
 if [ "$MODEL_PROVIDER" = "openai" ]; then
 cat > "$OPENCLAW_DIR/openclaw.json" << EOJSON
 {
@@ -1105,31 +1106,31 @@ openclaw doctor --fix --yes 2>&1 || true
 # Step 4: Install OpenClaw plugin (EDAMAME MCP tools)
 # ──────────────────────────────────────────────
 echo ""
-echo "--- Step 4: Installing OpenClaw plugin (edamame-mcp) ---"
+echo "--- Step 4: Installing OpenClaw plugin (edamame) ---"
 
-PLUGIN_SRC="$REPO_DIR/extensions/edamame-mcp"
-PLUGIN_DST="$OPENCLAW_DIR/extensions/edamame-mcp"
+PLUGIN_SRC="$REPO_DIR/extensions/edamame"
+PLUGIN_DST="$OPENCLAW_DIR/extensions/edamame"
 mkdir -p "$PLUGIN_DST"
 if [ -f "$PLUGIN_SRC/openclaw.plugin.json" ] && [ -f "$PLUGIN_SRC/index.ts" ]; then
     cp "$PLUGIN_SRC/openclaw.plugin.json" "$PLUGIN_DST/openclaw.plugin.json"
     cp "$PLUGIN_SRC/index.ts" "$PLUGIN_DST/index.ts"
     if grep -q "active_only" "$PLUGIN_DST/index.ts" && grep -q "since" "$PLUGIN_DST/index.ts"; then
-        echo "  edamame-mcp plugin files installed (get_sessions wrapper filters enabled)"
+        echo "  edamame plugin files installed (get_sessions wrapper filters enabled)"
     else
-        echo "  WARNING: edamame-mcp plugin installed, but get_sessions wrapper filters were not detected"
+        echo "  WARNING: edamame plugin installed, but get_sessions wrapper filters were not detected"
     fi
     # Enable it in config (safe to re-run)
-    openclaw plugins enable edamame-mcp 2>&1
+    openclaw plugins enable edamame 2>&1
     # If gateway is already running (re-provision path), reload extension code now.
     if ss -tln 2>/dev/null | grep -q ':18789 '; then
         if openclaw gateway restart >/tmp/openclaw-gateway-restart.log 2>&1; then
-            echo "  Gateway restarted to load latest edamame-mcp plugin"
+            echo "  Gateway restarted to load latest edamame plugin"
         else
             echo "  WARNING: gateway restart failed after plugin sync"
         fi
     fi
 else
-    echo "  WARNING: edamame-mcp plugin not found at $PLUGIN_SRC"
+    echo "  WARNING: edamame plugin not found at $PLUGIN_SRC"
 fi
 
 # Write alert delivery config for the send_alert tool (plugin reads these files)
@@ -1161,9 +1162,6 @@ if [ -f "$SKILL_EX_SRC/SKILL.md" ]; then
     rm -rf "$SKILL_EX_ALIAS_DST"
     mkdir -p "$SKILL_EX_ALIAS_DST"
     cp "$SKILL_EX_SRC/SKILL.md" "$SKILL_EX_ALIAS_DST/SKILL.md"
-    if [ -f "$SKILL_EX_SRC/clawhub.json" ]; then
-        cp "$SKILL_EX_SRC/clawhub.json" "$SKILL_EX_ALIAS_DST/clawhub.json"
-    fi
     echo "  edamame-extrapolator installed"
     echo "  edamame-cortex-extrapolator compatibility copy installed"
 else
