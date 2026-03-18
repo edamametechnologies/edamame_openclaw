@@ -45,7 +45,7 @@ This skill supports two modes. **Always try compiled mode first.**
 
 Call `extrapolator_run_cycle` and report the result.
 
-The `extrapolator_run_cycle` tool (provided by the edamame plugin):
+The `extrapolator_run_cycle` tool (provided by the EDAMAME plugin):
 1. Reads recent OpenClaw session transcripts via the gateway API
 2. Deterministically extracts behavioral signals (domains, ports, commands,
    file paths) using compiled heuristics
@@ -57,7 +57,7 @@ This mode consumes zero OpenClaw agent LLM tokens. EDAMAME's own internal
 LLM (Portal-managed) handles the behavioral model generation.
 
 If `extrapolator_run_cycle` returns an error or is unavailable (e.g. the
-edamame plugin is not installed or the OpenClaw CLI session APIs are
+EDAMAME plugin is not installed or the OpenClaw CLI session APIs are
 not available), fall back to Mode B.
 
 ### Mode B: LLM-Driven (Fallback)

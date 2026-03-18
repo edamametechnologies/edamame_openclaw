@@ -26,7 +26,7 @@ The extrapolator supports two execution modes, selectable via the
 
 Compiled mode is preferred for production: it eliminates per-cycle OpenClaw LLM
 costs while producing equivalent behavioral models. The LLM-driven mode remains
-available as a fallback when the edamame plugin is unavailable or for
+available as a fallback when the EDAMAME plugin is unavailable or for
 environments that benefit from richer agent reasoning.
 
 ```bash
