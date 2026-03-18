@@ -1,5 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
+import os from "node:os"
+import { execSync } from "node:child_process"
 
 type ToolTextContent = { type: "text"; text: string }
 type ToolResult = { content: ToolTextContent[] }
@@ -48,6 +50,93 @@ function _getAlertChannel(): string {
 function _getEndpoint(): string {
     const env = (process.env.EDAMAME_MCP_ENDPOINT || "").trim()
     return env || "http://127.0.0.1:3000/mcp"
+}
+
+const _AGENT_INSTANCE_ID_FILE = ".edamame_openclaw_agent_instance_id"
+
+function _getAgentInstanceIdFilePath(): string | null {
+    const home = process.env.HOME || ""
+    if (!home) return null
+    return path.join(home, _AGENT_INSTANCE_ID_FILE)
+}
+
+function _normalizeAgentInstanceId(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/\.local$/i, "")
+        .replace(/\s+\(\d+\)$/i, "")
+        .replace(/_/g, "-")
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/-{2,}/g, "-")
+        .replace(/^-+|-+$/g, "")
+}
+
+function _readPersistedAgentInstanceId(): string | null {
+    const filePath = _getAgentInstanceIdFilePath()
+    if (!filePath) return null
+    const value = _readFirstLine(filePath)
+    if (!value) return null
+    const normalized = _normalizeAgentInstanceId(value)
+    return normalized || null
+}
+
+function _persistAgentInstanceId(value: string): string {
+    const normalized = _normalizeAgentInstanceId(value)
+    if (!normalized) return "openclaw-default"
+    const filePath = _getAgentInstanceIdFilePath()
+    if (filePath) {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true })
+        fs.writeFileSync(filePath, `${normalized}\n`, { encoding: "utf-8", mode: 0o600 })
+        try {
+            fs.chmodSync(filePath, 0o600)
+        } catch {
+            // Ignore chmod failures on platforms that do not support it.
+        }
+    }
+    return normalized
+}
+
+function _getMacosComputerName(): string {
+    if (process.platform !== "darwin") return ""
+    try {
+        return execSync("scutil --get ComputerName", {
+            encoding: "utf-8",
+            stdio: ["ignore", "pipe", "ignore"],
+            timeout: 5_000,
+        }).trim()
+    } catch {
+        return ""
+    }
+}
+
+function _canonicalHostAgentInstanceId(): string {
+    const explicitHost = (process.env.EDAMAME_OPENCLAW_AGENT_HOSTNAME || "").trim()
+    const rawHost = explicitHost || _getMacosComputerName() || os.hostname()
+    return _normalizeAgentInstanceId(rawHost)
+}
+
+function _isLegacyAgentInstanceId(value: string, canonicalHostId: string): boolean {
+    if (!value) return false
+    if (value === "openclaw-default" || value === "main") return true
+    return canonicalHostId !== "" && value === `${canonicalHostId}-main`
+}
+
+function _resolveAgentInstanceId(explicitId?: string): string {
+    const envOverride = _normalizeAgentInstanceId(process.env.EDAMAME_OPENCLAW_AGENT_INSTANCE_ID || "")
+    if (envOverride) return _persistAgentInstanceId(envOverride)
+
+    const persisted = _readPersistedAgentInstanceId()
+    if (persisted) return persisted
+
+    const canonicalHostId = _canonicalHostAgentInstanceId()
+    const explicit = _normalizeAgentInstanceId(explicitId || "")
+    const candidate =
+        explicit && !_isLegacyAgentInstanceId(explicit, canonicalHostId)
+            ? explicit
+            : canonicalHostId || explicit || "openclaw-default"
+
+    return _persistAgentInstanceId(candidate)
 }
 
 function _getFetch(): any | null {
@@ -802,6 +891,9 @@ export {
     _toEpochMs,
     _sessionActivityMs,
     _toRfc3339,
+    _normalizeAgentInstanceId,
+    _isLegacyAgentInstanceId,
+    _resolveAgentInstanceId,
 }
 export type { GetSessionsArgs, OpenClawSession }
 
@@ -1205,7 +1297,7 @@ export default function register(api: any) {
                 agent_instance_id: {
                     type: "string",
                     description:
-                        "Stable identifier for this OpenClaw deployment (default: hostname or 'openclaw-default').",
+                        "Stable identifier for this OpenClaw deployment (default: persisted deployment identity).",
                 },
             },
         },
@@ -1215,14 +1307,9 @@ export default function register(api: any) {
         ) {
             const activeMinutes = params.active_minutes ?? 15
             const agentType = "openclaw"
-            const agentInstanceId =
-                params.agent_instance_id ||
-                (process.env.HOSTNAME || "").trim() ||
-                "openclaw-default"
+            const agentInstanceId = _resolveAgentInstanceId(params.agent_instance_id)
 
             // Step 1: Enumerate recent sessions via OpenClaw CLI
-            const { execSync } = require("node:child_process")
-            const fs = require("node:fs")
             const npmGlobal = path.join(process.env.HOME || "", ".npm-global", "bin")
             const localNode = path.join(process.env.HOME || "", ".local", "node-v22", "bin")
             const envPath = `${localNode}:${npmGlobal}:${process.env.PATH || ""}`

@@ -9,9 +9,13 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./agent_identity.sh
+source "$SCRIPT_DIR/agent_identity.sh"
+
 PAIR_ENDPOINT="${PAIR_ENDPOINT:-http://127.0.0.1:3000}"
 AGENT_TYPE="${AGENT_TYPE:-openclaw}"
-AGENT_INSTANCE_ID="${AGENT_INSTANCE_ID:-$(hostname)}"
+AGENT_INSTANCE_ID="${AGENT_INSTANCE_ID:-}"
 CLIENT_NAME="${CLIENT_NAME:-OpenClaw EDAMAME Plugin}"
 PSK_FILE="${PSK_FILE:-$HOME/.edamame_psk}"
 POLL_INTERVAL=2
@@ -26,7 +30,7 @@ Request app-mediated pairing with the EDAMAME Security app.
 Options:
   --endpoint URL          EDAMAME MCP base URL (default: http://127.0.0.1:3000)
   --agent-type TYPE       Agent type identifier (default: openclaw)
-  --agent-instance-id ID  Agent instance ID (default: hostname)
+  --agent-instance-id ID  Agent instance ID (default: persisted stable deployment ID)
   --client-name NAME      Display name (default: OpenClaw EDAMAME Plugin)
   --psk-file PATH         Where to store the credential (default: ~/.edamame_psk)
   --timeout SECONDS       How long to wait for approval (default: 60)
@@ -48,11 +52,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+AGENT_INSTANCE_ID="$(edamame_openclaw_resolve_agent_instance_id "$AGENT_INSTANCE_ID")"
 PAIR_URL="${PAIR_ENDPOINT}/mcp/pair"
 
 echo "Requesting pairing with EDAMAME Security app..."
 echo "  Endpoint: ${PAIR_ENDPOINT}"
 echo "  Agent:    ${AGENT_TYPE} / ${AGENT_INSTANCE_ID}"
+echo "  ID file:  $(edamame_openclaw_agent_instance_id_file)"
 
 RESPONSE=$(curl -sf -X POST "${PAIR_URL}" \
   -H "Content-Type: application/json" \

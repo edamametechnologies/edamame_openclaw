@@ -56,6 +56,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
+# shellcheck source=./agent_identity.sh
+source "$SCRIPT_DIR/agent_identity.sh"
 ALERT_TO="${ALERT_TO:-}"
 ALERT_CHANNEL="${ALERT_CHANNEL:-whatsapp}"
 
@@ -1258,6 +1260,7 @@ PY
 remove_cron_by_name_compat "Divergence Detector"
 remove_cron_by_name_compat "Posture Security Check"
 remove_cron_by_name_compat "Extrapolator"
+remove_cron_by_name_compat "Cortex Extrapolator"
 
 # Register extrapolator cron (reads session history, writes behavioral model).
 #
@@ -1269,7 +1272,10 @@ remove_cron_by_name_compat "Extrapolator"
 #                         agent LLM to read transcripts and build the model.
 #
 EXTRAPOLATOR_MODE="${EXTRAPOLATOR_MODE:-compiled}"
+OPENCLAW_AGENT_INSTANCE_ID="$(edamame_openclaw_resolve_agent_instance_id "${AGENT_INSTANCE_ID:-}")"
 echo "  Registering extrapolator cron job (mode: $EXTRAPOLATOR_MODE)..."
+echo "  Stable agent instance ID: $OPENCLAW_AGENT_INSTANCE_ID"
+echo "  Stable ID file: $(edamame_openclaw_agent_instance_id_file)"
 
 case "$EXTRAPOLATOR_MODE" in
     compiled)
@@ -1283,7 +1289,7 @@ case "$EXTRAPOLATOR_MODE" in
             --timeout 600000 \
             --timeout-seconds 600 \
             --thinking off \
-            --message "Call extrapolator_run_cycle with active_minutes=5. Report the JSON result. If it fails, fall back to the edamame-extrapolator SKILL.md Mode B runbook." \
+            --message "Call extrapolator_run_cycle with active_minutes=5 and agent_instance_id=$OPENCLAW_AGENT_INSTANCE_ID. Report the JSON result. If it fails, fall back to the edamame-extrapolator SKILL.md Mode B runbook." \
             --no-deliver 2>&1 || echo "  (cron job may already exist)"
         echo "  Extrapolator cron registered (*/1 production, mode=compiled)"
         ;;
@@ -1298,7 +1304,7 @@ case "$EXTRAPOLATOR_MODE" in
             --timeout 600000 \
             --timeout-seconds 600 \
             --thinking off \
-            --message "Run extrapolation. This message is authoritative; do not read SKILL.md. Read MEMORY.md but use only the ## [extrapolator] State section and ignore any legacy [cortex-extrapolator] or [expected-behavior] sections. Call sessions_list activeMinutes=15, then sessions_history includeTools=true limit=100 for sessions with new activity. Build a V3 upsert_behavioral_model window_json with top-level fields window_start, window_end, agent_type, agent_instance_id, predictions, contributors, version, hash, ingested_at. Each prediction must be an object with agent_type, agent_instance_id, session_key, action, tools_called, expected_traffic, expected_sensitive_files, expected_lan_devices, expected_local_open_ports, expected_process_paths, expected_parent_paths, expected_open_files, expected_l7_protocols, expected_system_config, not_expected_traffic, not_expected_sensitive_files, not_expected_lan_devices, not_expected_local_open_ports, not_expected_process_paths, not_expected_parent_paths, not_expected_open_files, not_expected_l7_protocols, not_expected_system_config. Use agent_type=openclaw, a stable agent_instance_id, contributors=[], version=3.0, hash=\"\", and arrays not objects. After upsert_behavioral_model, call get_behavioral_model and retry until the result is non-null, has predictions, and includes your contributor identity. Update only the ## [extrapolator] State checkpoint in MEMORY.md with last_analysis_ts, cycles_completed, and analyzed_sessions; do not write an [expected-behavior] section. Print EXTRAPOLATOR_DONE: <N> sessions processed, behavioral model upserted only after read-back succeeds." \
+            --message "Run extrapolation. This message is authoritative; do not read SKILL.md. Read MEMORY.md but use only the ## [extrapolator] State section and ignore any legacy [cortex-extrapolator] or [expected-behavior] sections. Call sessions_list activeMinutes=15, then sessions_history includeTools=true limit=100 for sessions with new activity. Build a V3 upsert_behavioral_model window_json with top-level fields window_start, window_end, agent_type, agent_instance_id, predictions, contributors, version, hash, ingested_at. Each prediction must be an object with agent_type, agent_instance_id, session_key, action, tools_called, expected_traffic, expected_sensitive_files, expected_lan_devices, expected_local_open_ports, expected_process_paths, expected_parent_paths, expected_open_files, expected_l7_protocols, expected_system_config, not_expected_traffic, not_expected_sensitive_files, not_expected_lan_devices, not_expected_local_open_ports, not_expected_process_paths, not_expected_parent_paths, not_expected_open_files, not_expected_l7_protocols, not_expected_system_config. Use agent_type=openclaw, agent_instance_id=$OPENCLAW_AGENT_INSTANCE_ID, contributors=[], version=3.0, hash=\"\", and arrays not objects. Do not derive, mutate, or append to agent_instance_id. After upsert_behavioral_model, call get_behavioral_model and retry until the result is non-null, has predictions, and includes your contributor identity. Update only the ## [extrapolator] State checkpoint in MEMORY.md with last_analysis_ts, cycles_completed, and analyzed_sessions; do not write an [expected-behavior] section. Print EXTRAPOLATOR_DONE: <N> sessions processed, behavioral model upserted only after read-back succeeds." \
             --no-deliver 2>&1 || echo "  (cron job may already exist)"
         echo "  Extrapolator cron registered (*/5 production, mode=llm)"
         ;;

@@ -109,6 +109,20 @@ The file **must** be owner-read/write only:
 chmod 600 ~/.edamame_psk
 ```
 
+### Stable OpenClaw Identity
+
+OpenClaw deployments must use one stable `agent_instance_id` so EDAMAME
+merges behavioral contributors correctly. The setup scripts persist that ID in
+`~/.edamame_openclaw_agent_instance_id` and reuse it for pairing, cron jobs,
+and compiled extrapolator runs.
+
+- `setup/pair.sh` resolves and stores the deployment ID before requesting
+  app-mediated pairing.
+- `setup/provision.sh` recreates the extrapolator cron with the persisted ID
+  embedded in the cron payload.
+- The `edamame` plugin reads the same file and ignores legacy cron values such
+  as `openclaw-default` or `<host>-main` once a stable ID exists.
+
 ## Running in a Lima VM
 
 An example Lima template is provided for running the full EDAMAME + OpenClaw
