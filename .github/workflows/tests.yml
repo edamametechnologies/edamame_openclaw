@@ -1,7 +1,17 @@
 on:
   push:
     branches: [ dev, main ]
+    paths:
+      - 'extensions/**'
+      - 'skill/**'
+      - 'tests/**'
+      - 'package.json'
   pull_request:
+    paths:
+      - 'extensions/**'
+      - 'skill/**'
+      - 'tests/**'
+      - 'package.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
