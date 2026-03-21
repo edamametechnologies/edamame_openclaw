@@ -73,12 +73,57 @@ See [skill/README.md](skill/README.md) for architecture and distribution details
 
 ## Quick Start
 
-Install the plugin bundle:
+### Portable local install (recommended)
+
+```bash
+bash setup/install.sh
+```
+
+This installs the MCP plugin, skills, and package metadata into `~/.openclaw/`
+and optionally enables the plugin via `openclaw plugins enable edamame`.
+
+### EDAMAME app / posture CLI provisioning
+
+If EDAMAME Security (app or CLI) is running, you can provision from there:
+
+```bash
+# Via EDAMAME Posture CLI
+edamame-posture install-agent-plugin openclaw
+
+# Status check
+edamame-posture agent-plugin-status openclaw
+edamame-posture list-agent-plugins
+```
+
+The app also exposes an "Agent Plugins" section in AI Settings with install
+and test buttons.
+
+### Manual install
 
 ```bash
 cp -r extensions/edamame ~/.openclaw/extensions/
 openclaw plugins enable edamame
 ```
+
+## Local E2E: OpenClaw-shaped raw ingest (no gateway)
+
+To verify the same `RawReasoningSessionPayload` path the plugin uses for `upsert_behavioral_model_from_raw_sessions`,
+without the OpenClaw CLI or gateway:
+
+```bash
+npm run e2e:inject
+```
+
+This builds three synthetic sessions via `scripts/e2e_build_openclaw_payload.mts` (reusing `_buildRawPayload`
+from the plugin), calls `edamame_cli rpc upsert_behavioral_model_from_raw_sessions`, then polls
+`get_behavioral_model` until `predictions[]` lists all three `session_key` values for `agent_type` `openclaw`.
+
+Optional: `E2E_OPENCLAW_AGENT_INSTANCE_ID` forces the instance id used in the payload and verification
+(reads `~/.edamame_openclaw_agent_instance_id` when unset, otherwise normalizes the hostname).
+
+On poll timeout the script prints a JSON diagnosis (or writes it to `E2E_DIAGNOSTICS_FILE`): missing
+`session_keys`, counts of predictions for your agent, contributor rows, and `oc_e2e_*` keys still present.
+Use `E2E_PROGRESS_POLL=1` for per-poll stderr hints. Default `E2E_POLL_ATTEMPTS` is 36 (override for long soaks).
 
 ## Prerequisites
 
@@ -192,6 +237,7 @@ The `demo/` directory contains user-space injector scripts that trigger detectab
 
 | Script | Purpose |
 |--------|---------|
+| `setup/install.sh` | Portable local install (plugin + skills into `~/.openclaw/`) |
 | `setup/provision.sh` | Full VM provisioning (EDAMAME + OpenClaw + skills + MCP) |
 | `setup/pair.sh` | App-mediated pairing for developer workstations (EDAMAME app) |
 | `setup/build_posture.sh` | Build `edamame_posture` natively inside a Lima VM |

@@ -714,7 +714,11 @@ function _extractPorts(text: string, commands: string[]): number[] {
 
 function _extractPaths(text: string): string[] {
     const paths: string[] = []
-    for (const m of text.matchAll(_PATH_RE)) paths.push(m[0].replace(/[,.:;]+$/, ""))
+    for (const m of text.matchAll(_PATH_RE)) {
+        const cleaned = m[0].replace(/[,.:;]+$/, "")
+        if (/\.git$/.test(cleaned) && !cleaned.startsWith("/") && !cleaned.startsWith("~")) continue
+        paths.push(cleaned)
+    }
     return _unique(paths)
 }
 
