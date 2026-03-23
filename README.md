@@ -73,18 +73,11 @@ See [skill/README.md](skill/README.md) for architecture and distribution details
 
 ## Quick Start
 
-### Portable local install (recommended)
+### EDAMAME app / posture CLI provisioning (recommended)
 
-```bash
-bash setup/install.sh
-```
-
-This installs the MCP plugin, skills, and package metadata into `~/.openclaw/`
-and optionally enables the plugin via `openclaw plugins enable edamame`.
-
-### EDAMAME app / posture CLI provisioning
-
-If EDAMAME Security (app or CLI) is running, you can provision from there:
+The easiest cross-platform install path. EDAMAME downloads the latest release
+from GitHub (HTTP zipball -- no `git` required) and copies files using native
+Rust file operations (no `bash` or `python` required):
 
 ```bash
 # Via EDAMAME Posture CLI
@@ -95,8 +88,26 @@ edamame-posture agent-plugin-status openclaw
 edamame-posture list-agent-plugins
 ```
 
-The app also exposes an "Agent Plugins" section in AI Settings with install
-and test buttons.
+The EDAMAME Security app also exposes an "Agent Plugins" section in AI
+Settings with one-click install, status display, and intent injection test
+buttons.
+
+### Portable local install (bash)
+
+```bash
+bash setup/install.sh
+```
+
+This installs the MCP plugin, skills, and package metadata into `~/.openclaw/`
+and optionally enables the plugin via `openclaw plugins enable edamame`.
+
+### Portable local install (PowerShell, Windows)
+
+```powershell
+.\setup\install.ps1
+```
+
+PowerShell equivalent of `install.sh` for native Windows environments.
 
 ### Manual install
 
@@ -237,7 +248,8 @@ The `demo/` directory contains user-space injector scripts that trigger detectab
 
 | Script | Purpose |
 |--------|---------|
-| `setup/install.sh` | Portable local install (plugin + skills into `~/.openclaw/`) |
+| `setup/install.sh` | Portable local install -- bash (plugin + skills into `~/.openclaw/`) |
+| `setup/install.ps1` | Portable local install -- PowerShell for Windows |
 | `setup/provision.sh` | Full VM provisioning (EDAMAME + OpenClaw + skills + MCP) |
 | `setup/pair.sh` | App-mediated pairing for developer workstations (EDAMAME app) |
 | `setup/build_posture.sh` | Build `edamame_posture` natively inside a Lima VM |
