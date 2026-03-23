@@ -13,6 +13,8 @@
 #   E2E_DIAGNOSTICS_FILE           If set, write JSON diagnosis on poll timeout (harness sets this)
 #   E2E_PROGRESS_POLL              If 1, print missing keys to stderr during polls (noisy)
 #   E2E_SKIP_REPO_VERSION_CHECK    If 1, skip package.json vs openclaw.plugin.json version alignment
+#   E2E_SKIP_PROVISION_STRICT      If 1, skip installed-plugin check and use repo copy
+#   E2E_REQUIRE_PAIRING            If 1, fail when only legacy PSK exists (no pairing PSK)
 
 set -euo pipefail
 
@@ -57,6 +59,51 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "=== Provision check: installed OpenClaw plugin ==="
+
+OPENCLAW_HOME="$HOME/.openclaw"
+INSTALLED_PLUGIN="$OPENCLAW_HOME/extensions/edamame/index.ts"
+INSTALLED_META="$OPENCLAW_HOME/edamame-openclaw/package.json"
+
+if [[ "${E2E_SKIP_PROVISION_STRICT:-0}" != "1" ]]; then
+  if [[ ! -f "$INSTALLED_PLUGIN" ]]; then
+    echo "FAIL: installed plugin not found at $INSTALLED_PLUGIN" >&2
+    echo "Run: edamame-posture install-agent-plugin openclaw (or edamame_cli rpc provision_agent_plugin)" >&2
+    exit 1
+  fi
+  if [[ ! -f "$INSTALLED_META" ]]; then
+    echo "FAIL: installed metadata not found at $INSTALLED_META" >&2
+    exit 1
+  fi
+  export E2E_OPENCLAW_PLUGIN_ROOT="$OPENCLAW_HOME/extensions/edamame"
+  echo "OK: using installed plugin at $E2E_OPENCLAW_PLUGIN_ROOT"
+else
+  if [[ -f "$INSTALLED_PLUGIN" ]]; then
+    export E2E_OPENCLAW_PLUGIN_ROOT="$OPENCLAW_HOME/extensions/edamame"
+    echo "OK: installed plugin found, using $E2E_OPENCLAW_PLUGIN_ROOT"
+  else
+    echo "WARN: installed plugin not found; using repo copy (E2E_SKIP_PROVISION_STRICT=1)"
+    unset E2E_OPENCLAW_PLUGIN_ROOT
+  fi
+fi
+
+PAIRING_PSK_FILE="$HOME/.openclaw/edamame-openclaw/state/edamame-mcp.psk"
+LEGACY_PSK_FILE="$HOME/.edamame_psk"
+if [[ -n "${EDAMAME_MCP_PSK:-}" ]]; then
+  echo "OK: PSK from EDAMAME_MCP_PSK env"
+elif [[ -s "$PAIRING_PSK_FILE" ]]; then
+  echo "OK: PSK file $PAIRING_PSK_FILE (pairing)"
+elif [[ -s "$LEGACY_PSK_FILE" ]]; then
+  if [[ "${E2E_REQUIRE_PAIRING:-0}" == "1" ]]; then
+    echo "FAIL: pairing PSK not found at $PAIRING_PSK_FILE (legacy PSK exists but E2E_REQUIRE_PAIRING=1)" >&2
+    exit 1
+  fi
+  echo "WARN: using legacy PSK $LEGACY_PSK_FILE (pairing PSK not found at $PAIRING_PSK_FILE)"
+else
+  echo "FAIL: PSK not found. Run setup/pair.sh, set EDAMAME_MCP_PSK, or write ~/.edamame_psk" >&2
+  exit 1
+fi
+
 if [[ "${E2E_SKIP_REPO_VERSION_CHECK:-0}" != "1" ]]; then
   echo "=== Repo manifest version alignment ==="
   export _E2E_OW_ROOT="$REPO_ROOT"
@@ -91,51 +138,47 @@ PY
   unset _E2E_OW_ROOT
 fi
 
-echo "=== Build raw_sessions JSON (OpenClaw plugin shape) ==="
-E2E_JSON="$(cd "$REPO_ROOT" && node --import tsx ./scripts/e2e_build_openclaw_payload.mts)"
+echo "=== Build payload and push via MCP (OpenClaw plugin) ==="
+export E2E_PUSH_VIA_MCP=1
+set +e
+E2E_JSON="$(cd "$REPO_ROOT" && node --import tsx ./scripts/e2e_build_openclaw_payload.mts 2>&1)"
+BUILD_CODE=$?
+set -e
+if [[ "$BUILD_CODE" != 0 ]]; then
+  echo "$E2E_JSON"
+  echo "FAIL: payload build/push exited $BUILD_CODE" >&2
+  exit 1
+fi
 AGENT_ID="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['agent_instance_id'])")"
 MARKERS_CSV="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(','.join(json.load(sys.stdin)['session_keys']))")"
-RAW_INNER="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin)['raw_sessions'], separators=(',', ':')))")"
+MCP_RESULT="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mcp_result',''))")"
 
 echo "agent_instance_id=$AGENT_ID"
 echo "session_keys=$MARKERS_CSV"
+echo "MCP upsert result: $MCP_RESULT"
 
-RPC_ARG="$(python3 -c "import json,sys; inner=sys.argv[1]; print(json.dumps({'raw_sessions_json': inner}))" "$RAW_INNER")"
-
-echo "=== upsert_behavioral_model_from_raw_sessions (edamame_cli) ==="
-set +e
-UPSERT_OUT="$("$EDA_CLI" rpc upsert_behavioral_model_from_raw_sessions "$RPC_ARG" --pretty 2>&1)"
-UPSERT_CODE=$?
-set -e
-echo "$UPSERT_OUT"
-if [[ "$UPSERT_CODE" != 0 ]]; then
-  echo "FAIL: upsert RPC exited $UPSERT_CODE" >&2
+if echo "$MCP_RESULT" | grep -qi "ERROR"; then
+  echo "FAIL: MCP upsert returned error" >&2
   exit 1
 fi
 
-WINDOW_HASH="$(
-  echo "$UPSERT_OUT" | python3 -c "
-import json, re, sys
-text = sys.stdin.read()
-m = re.search(r'Result:\\s*(.+)', text, re.S)
-payload = m.group(1).strip() if m else text.strip()
+WINDOW_HASH="$(echo "$MCP_RESULT" | python3 -c "
+import json, sys
+text = sys.stdin.read().strip()
 try:
-    outer = json.loads(payload)
+    obj = json.loads(text)
 except json.JSONDecodeError:
     sys.exit(0)
-if isinstance(outer, str):
+if isinstance(obj, str):
     try:
-        inner = json.loads(outer)
+        obj = json.loads(obj)
     except json.JSONDecodeError:
         sys.exit(0)
-else:
-    inner = outer
-wh = inner.get('window') if isinstance(inner, dict) else None
+wh = obj.get('window') if isinstance(obj, dict) else None
 h = (wh or {}).get('hash') if isinstance(wh, dict) else None
 if h:
     print(h)
-" 2>/dev/null || true
-)"
+" 2>/dev/null || true)"
 
 echo "=== Poll get_behavioral_model ==="
 

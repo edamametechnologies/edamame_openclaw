@@ -46,7 +46,7 @@ OPENCLAW_DIR="$HOME/.openclaw"
 mkdir -p "$OPENCLAW_DIR/extensions/edamame"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-extrapolator"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-posture"
-mkdir -p "$OPENCLAW_DIR/edamame-openclaw"
+mkdir -p "$OPENCLAW_DIR/edamame-openclaw/state"
 
 # Step 1: Install MCP plugin
 PLUGIN_SRC="$SOURCE_ROOT/extensions/edamame"

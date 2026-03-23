@@ -3,7 +3,7 @@
 #
 # Sends a pairing request to the EDAMAME Security app's MCP endpoint,
 # waits for the user to approve in the app, then stores the issued
-# credential in ~/.edamame_psk.
+# credential in ~/.openclaw/edamame-openclaw/state/edamame-mcp.psk.
 #
 # For VM/daemon environments, use provision.sh instead (PSK flow).
 
@@ -17,7 +17,7 @@ PAIR_ENDPOINT="${PAIR_ENDPOINT:-http://127.0.0.1:3000}"
 AGENT_TYPE="${AGENT_TYPE:-openclaw}"
 AGENT_INSTANCE_ID="${AGENT_INSTANCE_ID:-}"
 CLIENT_NAME="${CLIENT_NAME:-OpenClaw EDAMAME Plugin}"
-PSK_FILE="${PSK_FILE:-$HOME/.edamame_psk}"
+PSK_FILE="${PSK_FILE:-$HOME/.openclaw/edamame-openclaw/state/edamame-mcp.psk}"
 POLL_INTERVAL=2
 TIMEOUT=60
 
@@ -32,7 +32,7 @@ Options:
   --agent-type TYPE       Agent type identifier (default: openclaw)
   --agent-instance-id ID  Agent instance ID (default: persisted stable deployment ID)
   --client-name NAME      Display name (default: OpenClaw EDAMAME Plugin)
-  --psk-file PATH         Where to store the credential (default: ~/.edamame_psk)
+  --psk-file PATH         Where to store the credential (default: ~/.openclaw/edamame-openclaw/state/edamame-mcp.psk)
   --timeout SECONDS       How long to wait for approval (default: 60)
   -h, --help              Show this help
 EOF
@@ -103,7 +103,8 @@ while [[ $(date +%s) -lt ${DEADLINE} ]]; do
         exit 1
       fi
 
-      mkdir -p "$(dirname "${PSK_FILE}")"
+      PSK_DIR="$(dirname "${PSK_FILE}")"
+      mkdir -p "${PSK_DIR}"
       echo "${CREDENTIAL}" > "${PSK_FILE}"
       chmod 600 "${PSK_FILE}"
 

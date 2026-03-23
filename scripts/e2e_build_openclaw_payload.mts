@@ -5,15 +5,24 @@
  *
  * Uses the same _buildRawPayload shape as the OpenClaw MCP plugin without calling
  * _resolveAgentInstanceId (which would write ~/.edamame_openclaw_agent_instance_id).
+ *
+ * When E2E_OPENCLAW_PLUGIN_ROOT is set, imports from the installed plugin at that
+ * path (e.g. ~/.openclaw/extensions/edamame/index.ts). Otherwise falls back to
+ * the repo-local copy at ../extensions/edamame/index.ts.
  */
 
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import {
-    _buildRawPayload,
-    _normalizeAgentInstanceId,
-} from "../extensions/edamame/index.ts"
+
+const pluginRoot = process.env.E2E_OPENCLAW_PLUGIN_ROOT || ""
+const indexPath = pluginRoot
+    ? path.join(pluginRoot, "index.ts")
+    : path.resolve(import.meta.dirname!, "../extensions/edamame/index.ts")
+const repoIndexPath = path.resolve(import.meta.dirname!, "../extensions/edamame/index.ts")
+
+const { _buildRawPayload, _normalizeAgentInstanceId } = await import(indexPath)
+const { _callEdamameTool } = await import(repoIndexPath)
 
 function readAgentInstanceIdForE2e(): string {
     const fromE2e = (process.env.E2E_OPENCLAW_AGENT_INSTANCE_ID || "").trim()
@@ -100,10 +109,23 @@ const sessions = [
 const raw_sessions = _buildRawPayload(sessions, "openclaw", agentInstanceId)
 const session_keys = sessions.map((s) => s.key)
 
-process.stdout.write(
-    JSON.stringify({
-        agent_instance_id: agentInstanceId,
-        session_keys,
-        raw_sessions,
-    }) + "\n",
-)
+const pushViaMcp = (process.env.E2E_PUSH_VIA_MCP || "").trim() === "1"
+
+if (pushViaMcp) {
+    const rawJson = JSON.stringify(raw_sessions)
+    const result = await _callEdamameTool(
+        "upsert_behavioral_model_from_raw_sessions",
+        { raw_sessions_json: rawJson },
+        { timeoutMs: 120_000 },
+    )
+    const out = { agent_instance_id: agentInstanceId, session_keys, mcp_result: result }
+    process.stdout.write(JSON.stringify(out) + "\n")
+} else {
+    process.stdout.write(
+        JSON.stringify({
+            agent_instance_id: agentInstanceId,
+            session_keys,
+            raw_sessions,
+        }) + "\n",
+    )
+}

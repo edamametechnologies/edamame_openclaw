@@ -28,6 +28,8 @@ function _getPsk(): string | null {
     if (envPsk) return envPsk
     const home = process.env.HOME || ""
     if (!home) return null
+    const pairing = _readFirstLine(path.join(home, ".openclaw", "edamame-openclaw", "state", "edamame-mcp.psk"))
+    if (pairing) return pairing
     return _readFirstLine(path.join(home, ".edamame_psk"))
 }
 
@@ -898,6 +900,8 @@ export {
     _normalizeAgentInstanceId,
     _isLegacyAgentInstanceId,
     _resolveAgentInstanceId,
+    _callEdamameTool,
+    _getPsk,
 }
 export type { GetSessionsArgs, OpenClawSession }
 

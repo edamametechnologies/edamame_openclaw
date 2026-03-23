@@ -144,24 +144,26 @@ Use `E2E_PROGRESS_POLL=1` for per-poll stderr hints. Default `E2E_POLL_ATTEMPTS`
 
 ### MCP Authentication
 
-The MCP server supports two auth modes; both use the same credential file
-(`~/.edamame_psk`) and both are sent as Bearer tokens:
+The MCP server supports two auth modes, both sent as Bearer tokens:
 
 - **App-mediated pairing** (developer workstations with the EDAMAME app): Run
   `./setup/pair.sh`, approve in the app. The credential is a per-client
-  `edm_mcp_...` token.
-- **Legacy shared PSK** (CLI/VM/daemon with `edamame_posture`): Generate with
+  `edm_mcp_...` token stored in
+  `~/.openclaw/edamame-openclaw/state/edamame-mcp.psk`.
+- **Shared PSK** (CLI/VM/daemon with `edamame_posture`): Generate with
   `edamame_posture background-mcp-generate-psk`, write to `~/.edamame_psk`.
   `setup/provision.sh` handles this for Lima VMs.
 
-The plugin reads the credential from:
+The plugin reads the credential in this order:
 
-1. `EDAMAME_MCP_PSK` environment variable (takes precedence), or
-2. `~/.edamame_psk` file (single-line, the PSK or token string)
+1. `EDAMAME_MCP_PSK` environment variable (takes precedence)
+2. `~/.openclaw/edamame-openclaw/state/edamame-mcp.psk` (app-mediated pairing)
+3. `~/.edamame_psk` (shared PSK / legacy)
 
-The file **must** be owner-read/write only:
+Credential files **must** be owner-read/write only:
 
 ```bash
+chmod 600 ~/.openclaw/edamame-openclaw/state/edamame-mcp.psk
 chmod 600 ~/.edamame_psk
 ```
 
