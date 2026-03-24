@@ -152,7 +152,7 @@ PUSH_OK=0
 for ((ea = 1; ea <= E2E_EXTRAP_MAX_ATTEMPTS; ea++)); do
   echo "--- MCP push attempt $ea / $E2E_EXTRAP_MAX_ATTEMPTS ---"
   set +e
-  E2E_JSON="$(cd "$REPO_ROOT" && node --import tsx ./scripts/e2e_build_openclaw_payload.mts 2>&1)"
+  E2E_JSON="$(cd "$REPO_ROOT" && npx tsx ./scripts/e2e_build_openclaw_payload.mts 2>&1)"
   BUILD_CODE=$?
   set -e
   if [[ "$BUILD_CODE" != 0 ]]; then
