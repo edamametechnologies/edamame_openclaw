@@ -22,7 +22,7 @@ $Dirs = @(
     (Join-Path $OpenClawDir "extensions\edamame"),
     (Join-Path $OpenClawDir "skills\edamame-extrapolator"),
     (Join-Path $OpenClawDir "skills\edamame-posture"),
-    (Join-Path $OpenClawDir "edamame-openclaw")
+    (Join-Path $OpenClawDir "edamame-openclaw\state")
 )
 foreach ($d in $Dirs) {
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }

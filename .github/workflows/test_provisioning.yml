@@ -124,11 +124,10 @@ jobs:
       - name: Verify package.json version
         shell: bash
         run: |
-          PKG="${{ env.OPENCLAW_DIR }}/edamame-openclaw/package.json"
-          PKG="${PKG//\\//}"
           python3 -c "
-          import json, sys
-          pkg = json.load(open('$PKG'))
+          import json, os, sys
+          pkg_path = os.path.join(os.environ['OPENCLAW_DIR'], 'edamame-openclaw', 'package.json')
+          pkg = json.load(open(pkg_path))
           v = pkg.get('version', '')
           if not v:
               print('FAIL: no version in package.json')
@@ -141,11 +140,10 @@ jobs:
       - name: Verify plugin manifest
         shell: bash
         run: |
-          MANIFEST="${{ env.OPENCLAW_DIR }}/extensions/edamame/openclaw.plugin.json"
-          MANIFEST="${MANIFEST//\\//}"
           python3 -c "
-          import json, sys
-          m = json.load(open('$MANIFEST'))
+          import json, os, sys
+          manifest_path = os.path.join(os.environ['OPENCLAW_DIR'], 'extensions', 'edamame', 'openclaw.plugin.json')
+          m = json.load(open(manifest_path))
           for key in ['id', 'name', 'version']:
               if not m.get(key):
                   print(f'FAIL: missing {key} in plugin manifest')
@@ -159,14 +157,15 @@ jobs:
       - name: Verify state directory exists
         shell: bash
         run: |
-          STATE="${{ env.OPENCLAW_DIR }}/edamame-openclaw/state"
-          STATE="${STATE//\\//}"
-          if [ -d "$STATE" ]; then
-            echo "  OK: state dir exists ($STATE)"
-          else
-            echo "  FAIL: state dir missing ($STATE)"
-            exit 1
-          fi
+          python3 -c "
+          import os, sys
+          state = os.path.join(os.environ['OPENCLAW_DIR'], 'edamame-openclaw', 'state')
+          if os.path.isdir(state):
+              print(f'  OK: state dir exists ({state})')
+          else:
+              print(f'  FAIL: state dir missing ({state})')
+              sys.exit(1)
+          "
 
       # ── Uninstall ────────────────────────────────────────────
 
@@ -203,21 +202,25 @@ jobs:
         shell: bash
         run: |
           echo "--- Verifying uninstall ---"
-          FAIL=0
-          for d in \
-            "${{ env.OPENCLAW_DIR }}/extensions/edamame" \
-            "${{ env.OPENCLAW_DIR }}/skills/edamame-extrapolator" \
-            "${{ env.OPENCLAW_DIR }}/skills/edamame-posture" \
-            "${{ env.OPENCLAW_DIR }}/edamame-openclaw"; do
-            D="${d//\\//}"
-            if [ -d "$D" ]; then
-              echo "  FAIL: $D still exists"
-              FAIL=1
-            else
-              echo "  OK: $D removed"
-            fi
-          done
-          [ "$FAIL" -eq 0 ] || exit 1
+          python3 -c "
+          import os, sys
+          ocdir = os.environ['OPENCLAW_DIR']
+          dirs = [
+              os.path.join(ocdir, 'extensions', 'edamame'),
+              os.path.join(ocdir, 'skills', 'edamame-extrapolator'),
+              os.path.join(ocdir, 'skills', 'edamame-posture'),
+              os.path.join(ocdir, 'edamame-openclaw'),
+          ]
+          fail = False
+          for d in dirs:
+              if os.path.isdir(d):
+                  print(f'  FAIL: {d} still exists')
+                  fail = True
+              else:
+                  print(f'  OK: {d} removed')
+          if fail:
+              sys.exit(1)
+          "
           echo "--- Uninstall verified ---"
 
       # ── Slack alert ──────────────────────────────────────────
