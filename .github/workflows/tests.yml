@@ -3,15 +3,23 @@ on:
     branches: [ dev, main ]
     paths:
       - 'extensions/**'
+      - 'scripts/**'
+      - 'setup/**'
       - 'skill/**'
       - 'tests/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/tests.yml'
   pull_request:
     paths:
       - 'extensions/**'
+      - 'scripts/**'
+      - 'setup/**'
       - 'skill/**'
       - 'tests/**'
       - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/tests.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

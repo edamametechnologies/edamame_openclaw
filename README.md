@@ -269,7 +269,6 @@ Run triggers with `--agent-type openclaw`.
 | `setup/provision.sh` | Full VM provisioning (EDAMAME + OpenClaw + skills + MCP) |
 | `setup/pair.sh` | App-mediated pairing for developer workstations (EDAMAME app) |
 | `setup/build_posture.sh` | Build `edamame_posture` natively inside a Lima VM |
-| `setup/verify_toolchain.sh` | Verify required tools are installed in the VM |
 | `setup/lima-example-openclaw.yaml` | Example Lima VM template |
 
 ## Related Repositories
