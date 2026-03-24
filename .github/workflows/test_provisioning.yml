@@ -351,6 +351,7 @@ jobs:
           E2E_SKIP_PROVISION_STRICT: "1"
           E2E_SKIP_REPO_VERSION_CHECK: "1"
           EDAMAME_CLI: ${{ env.EDAMAME_CLI }}
+          EDAMAME_MCP_PSK: ${{ env.EDAMAME_PSK }}
         run: |
           bash tests/e2e_inject_intent.sh
 
