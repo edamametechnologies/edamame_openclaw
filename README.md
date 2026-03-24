@@ -250,9 +250,15 @@ Alternate ports avoid conflicts with the macOS EDAMAME app.
 
 ## E2E Tests
 
-E2E tests for this integration (trigger scripts, intent injection, harness)
-live in the [agent_security](https://github.com/edamametechnologies/agent_security)
-repo under `tests/e2e/`. Run triggers with `--agent-type openclaw`.
+Intent injection E2E test: see [E2E_TESTS.md](E2E_TESTS.md) for details.
+
+```bash
+bash tests/e2e_inject_intent.sh
+```
+
+The full cross-agent E2E harness (intent + CVE/divergence) lives in
+[agent_security/tests/e2e/](https://github.com/edamametechnologies/agent_security/tree/main/tests/e2e).
+Run triggers with `--agent-type openclaw`.
 
 ## Setup Scripts
 
