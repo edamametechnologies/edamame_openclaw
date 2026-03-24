@@ -150,8 +150,14 @@ The MCP server supports two auth modes, both sent as Bearer tokens:
   `./setup/pair.sh`, approve in the app. The credential is a per-client
   `edm_mcp_...` token stored in
   `~/.openclaw/edamame-openclaw/state/edamame-mcp.psk`.
-- **Shared PSK** (CLI/VM/daemon with `edamame_posture`): Generate with
-  `edamame_posture background-mcp-generate-psk`, write to `~/.edamame_psk`.
+- **Shared PSK** (CLI/VM/daemon with `edamame_posture`): Generate and
+  start the MCP endpoint, then write the PSK to `~/.edamame_psk`:
+
+  ```bash
+  edamame-posture mcp-generate-psk          # or: background-mcp-generate-psk
+  edamame-posture mcp-start 3000 "<PSK>"    # or: background-mcp-start
+  ```
+
   `setup/provision.sh` handles this for Lima VMs.
 
 The plugin reads the credential in this order:
@@ -242,9 +248,11 @@ See `setup/provision.sh` header for the full list.
 
 Alternate ports avoid conflicts with the macOS EDAMAME app.
 
-## Demo Scripts
+## E2E Tests
 
-The `demo/` directory contains user-space injector scripts that trigger detectable security events (divergence, token exfiltration, sandbox escape, blacklisted communication). See [demo/README.md](demo/README.md) for usage.
+E2E tests for this integration (trigger scripts, intent injection, harness)
+live in the [agent_security](https://github.com/edamametechnologies/agent_security)
+repo under `tests/e2e/`. Run triggers with `--agent-type openclaw`.
 
 ## Setup Scripts
 

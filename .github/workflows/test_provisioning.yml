@@ -1,0 +1,238 @@
+on:
+  push:
+    branches: [ dev, main ]
+    paths:
+      - 'setup/**'
+      - 'extensions/**'
+      - 'skill/**'
+      - 'tests/**'
+  pull_request:
+    paths:
+      - 'setup/**'
+      - 'extensions/**'
+      - 'skill/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+name: Provisioning lifecycle tests
+
+permissions: read-all
+
+jobs:
+  provision:
+    name: Provision (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── Install ──────────────────────────────────────────────
+
+      - name: Run install (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "--- Running install.sh ---"
+          bash setup/install.sh
+          echo "--- Install completed ---"
+
+      - name: Run install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "--- Running install.ps1 ---"
+          & "$PWD\setup\install.ps1"
+          Write-Host "--- Install completed ---"
+
+      # ── Resolve paths ────────────────────────────────────────
+
+      - name: Resolve installed paths (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          OPENCLAW_DIR="$HOME/.openclaw"
+          echo "OPENCLAW_DIR=$OPENCLAW_DIR" >> "$GITHUB_ENV"
+
+      - name: Resolve installed paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $OpenClawDir = Join-Path $env:USERPROFILE ".openclaw"
+          "OPENCLAW_DIR=$OpenClawDir" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
+
+      # ── Verify installed layout ──────────────────────────────
+
+      - name: Verify installed layout (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "--- Checking installed files ---"
+          FAIL=0
+          for f in \
+            "$OPENCLAW_DIR/extensions/edamame/openclaw.plugin.json" \
+            "$OPENCLAW_DIR/extensions/edamame/index.ts" \
+            "$OPENCLAW_DIR/skills/edamame-extrapolator/SKILL.md" \
+            "$OPENCLAW_DIR/skills/edamame-posture/SKILL.md" \
+            "$OPENCLAW_DIR/edamame-openclaw/package.json"; do
+            if [ -f "$f" ]; then
+              echo "  OK: $f"
+            else
+              echo "  FAIL: $f not found"
+              FAIL=1
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+          echo "--- Layout verified ---"
+
+      - name: Verify installed layout (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "--- Checking installed files ---"
+          $fail = $false
+          $files = @(
+            "$env:OPENCLAW_DIR\extensions\edamame\openclaw.plugin.json",
+            "$env:OPENCLAW_DIR\extensions\edamame\index.ts",
+            "$env:OPENCLAW_DIR\skills\edamame-extrapolator\SKILL.md",
+            "$env:OPENCLAW_DIR\skills\edamame-posture\SKILL.md",
+            "$env:OPENCLAW_DIR\edamame-openclaw\package.json"
+          )
+          foreach ($f in $files) {
+            if (Test-Path $f) { Write-Host "  OK: $f" }
+            else { Write-Host "  FAIL: $f not found"; $fail = $true }
+          }
+          if ($fail) { exit 1 }
+          Write-Host "--- Layout verified ---"
+
+      # ── Verify package.json version ──────────────────────────
+
+      - name: Verify package.json version
+        shell: bash
+        run: |
+          PKG="${{ env.OPENCLAW_DIR }}/edamame-openclaw/package.json"
+          PKG="${PKG//\\//}"
+          python3 -c "
+          import json, sys
+          pkg = json.load(open('$PKG'))
+          v = pkg.get('version', '')
+          if not v:
+              print('FAIL: no version in package.json')
+              sys.exit(1)
+          print(f'Installed version: {v}')
+          "
+
+      # ── Verify plugin manifest fields ────────────────────────
+
+      - name: Verify plugin manifest
+        shell: bash
+        run: |
+          MANIFEST="${{ env.OPENCLAW_DIR }}/extensions/edamame/openclaw.plugin.json"
+          MANIFEST="${MANIFEST//\\//}"
+          python3 -c "
+          import json, sys
+          m = json.load(open('$MANIFEST'))
+          for key in ['id', 'name', 'version']:
+              if not m.get(key):
+                  print(f'FAIL: missing {key} in plugin manifest')
+                  sys.exit(1)
+              print(f'  {key}: {m[key]}')
+          print('Plugin manifest valid')
+          "
+
+      # ── Verify state directory ───────────────────────────────
+
+      - name: Verify state directory exists
+        shell: bash
+        run: |
+          STATE="${{ env.OPENCLAW_DIR }}/edamame-openclaw/state"
+          STATE="${STATE//\\//}"
+          if [ -d "$STATE" ]; then
+            echo "  OK: state dir exists ($STATE)"
+          else
+            echo "  FAIL: state dir missing ($STATE)"
+            exit 1
+          fi
+
+      # ── Uninstall ────────────────────────────────────────────
+
+      - name: Uninstall (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "--- Uninstalling ---"
+          rm -rf "$OPENCLAW_DIR/extensions/edamame"
+          rm -rf "$OPENCLAW_DIR/skills/edamame-extrapolator"
+          rm -rf "$OPENCLAW_DIR/skills/edamame-posture"
+          rm -rf "$OPENCLAW_DIR/edamame-openclaw"
+          echo "--- Uninstall completed ---"
+
+      - name: Uninstall (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "--- Uninstalling ---"
+          $dirs = @(
+            "$env:OPENCLAW_DIR\extensions\edamame",
+            "$env:OPENCLAW_DIR\skills\edamame-extrapolator",
+            "$env:OPENCLAW_DIR\skills\edamame-posture",
+            "$env:OPENCLAW_DIR\edamame-openclaw"
+          )
+          foreach ($d in $dirs) {
+            if (Test-Path $d) { Remove-Item -Recurse -Force $d }
+          }
+          Write-Host "--- Uninstall completed ---"
+
+      # ── Verify uninstall ─────────────────────────────────────
+
+      - name: Verify uninstall
+        shell: bash
+        run: |
+          echo "--- Verifying uninstall ---"
+          FAIL=0
+          for d in \
+            "${{ env.OPENCLAW_DIR }}/extensions/edamame" \
+            "${{ env.OPENCLAW_DIR }}/skills/edamame-extrapolator" \
+            "${{ env.OPENCLAW_DIR }}/skills/edamame-posture" \
+            "${{ env.OPENCLAW_DIR }}/edamame-openclaw"; do
+            D="${d//\\//}"
+            if [ -d "$D" ]; then
+              echo "  FAIL: $D still exists"
+              FAIL=1
+            else
+              echo "  OK: $D removed"
+            fi
+          done
+          [ "$FAIL" -eq 0 ] || exit 1
+          echo "--- Uninstall verified ---"
+
+      # ── Slack alert ──────────────────────────────────────────
+
+      - name: Slack alert on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          channel-id: "C072J0U9TH7"
+          slack-message: |
+            *edamame_openclaw Provisioning CI Failed*
+            Repository: ${{ github.repository }}
+            Branch: ${{ github.ref }}
+            OS: ${{ matrix.os }}
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        continue-on-error: true
