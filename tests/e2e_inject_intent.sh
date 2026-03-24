@@ -145,25 +145,47 @@ fi
 echo "=== Build payload and push via MCP (OpenClaw plugin) ==="
 (cd "$REPO_ROOT" && npm ci 2>&1) || echo "WARN: npm ci failed, continuing with existing node_modules"
 export E2E_PUSH_VIA_MCP=1
-set +e
-E2E_JSON="$(cd "$REPO_ROOT" && node --import tsx ./scripts/e2e_build_openclaw_payload.mts 2>&1)"
-BUILD_CODE=$?
-set -e
-if [[ "$BUILD_CODE" != 0 ]]; then
-  echo "$E2E_JSON"
-  echo "FAIL: payload build/push exited $BUILD_CODE" >&2
-  exit 1
-fi
-AGENT_ID="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['agent_instance_id'])")"
-MARKERS_CSV="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(','.join(json.load(sys.stdin)['session_keys']))")"
-MCP_RESULT="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mcp_result',''))")"
 
-echo "agent_instance_id=$AGENT_ID"
-echo "session_keys=$MARKERS_CSV"
-echo "MCP upsert result: $MCP_RESULT"
+E2E_EXTRAP_MAX_ATTEMPTS="${E2E_EXTRAP_MAX_ATTEMPTS:-3}"
+E2E_EXTRAP_RETRY_DELAY="${E2E_EXTRAP_RETRY_DELAY:-15}"
+PUSH_OK=0
+for ((ea = 1; ea <= E2E_EXTRAP_MAX_ATTEMPTS; ea++)); do
+  echo "--- MCP push attempt $ea / $E2E_EXTRAP_MAX_ATTEMPTS ---"
+  set +e
+  E2E_JSON="$(cd "$REPO_ROOT" && node --import tsx ./scripts/e2e_build_openclaw_payload.mts 2>&1)"
+  BUILD_CODE=$?
+  set -e
+  if [[ "$BUILD_CODE" != 0 ]]; then
+    echo "$E2E_JSON"
+    echo "WARN: payload build/push exited $BUILD_CODE (attempt $ea)" >&2
+    if ((ea < E2E_EXTRAP_MAX_ATTEMPTS)); then
+      echo "Retrying in ${E2E_EXTRAP_RETRY_DELAY}s..."
+      sleep "$E2E_EXTRAP_RETRY_DELAY"
+    fi
+    continue
+  fi
+  AGENT_ID="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['agent_instance_id'])")"
+  MARKERS_CSV="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(','.join(json.load(sys.stdin)['session_keys']))")"
+  MCP_RESULT="$(echo "$E2E_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('mcp_result',''))")"
 
-if echo "$MCP_RESULT" | grep -qi "ERROR"; then
-  echo "FAIL: MCP upsert returned error" >&2
+  echo "agent_instance_id=$AGENT_ID"
+  echo "session_keys=$MARKERS_CSV"
+  echo "MCP upsert result: $MCP_RESULT"
+
+  if echo "$MCP_RESULT" | grep -qi "ERROR"; then
+    echo "WARN: MCP upsert returned error (attempt $ea)" >&2
+    if ((ea < E2E_EXTRAP_MAX_ATTEMPTS)); then
+      echo "Retrying in ${E2E_EXTRAP_RETRY_DELAY}s..."
+      sleep "$E2E_EXTRAP_RETRY_DELAY"
+    fi
+    continue
+  fi
+  PUSH_OK=1
+  break
+done
+
+if [[ "$PUSH_OK" != 1 ]]; then
+  echo "FAIL: MCP payload push failed after $E2E_EXTRAP_MAX_ATTEMPTS attempts" >&2
   exit 1
 fi
 
