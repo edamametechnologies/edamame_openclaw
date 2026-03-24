@@ -14,6 +14,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 
 const pluginRoot = process.env.E2E_OPENCLAW_PLUGIN_ROOT || ""
 const indexPath = pluginRoot
@@ -21,8 +22,8 @@ const indexPath = pluginRoot
     : path.resolve(import.meta.dirname!, "../extensions/edamame/index.ts")
 const repoIndexPath = path.resolve(import.meta.dirname!, "../extensions/edamame/index.ts")
 
-const { _buildRawPayload, _normalizeAgentInstanceId } = await import(indexPath)
-const { _callEdamameTool } = await import(repoIndexPath)
+const { _buildRawPayload, _normalizeAgentInstanceId } = await import(pathToFileURL(indexPath).href)
+const { _callEdamameTool } = await import(pathToFileURL(repoIndexPath).href)
 
 function readAgentInstanceIdForE2e(): string {
     const fromE2e = (process.env.E2E_OPENCLAW_AGENT_INSTANCE_ID || "").trim()
