@@ -143,6 +143,7 @@ PY
 fi
 
 echo "=== Build payload and push via MCP (OpenClaw plugin) ==="
+(cd "$REPO_ROOT" && npm ci 2>&1) || echo "WARN: npm ci failed, continuing with existing node_modules"
 export E2E_PUSH_VIA_MCP=1
 set +e
 E2E_JSON="$(cd "$REPO_ROOT" && node --import tsx ./scripts/e2e_build_openclaw_payload.mts 2>&1)"
