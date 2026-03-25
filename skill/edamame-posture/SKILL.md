@@ -7,7 +7,7 @@ description: >
   processing is authoritative by default.
 version: 2.0.0
 homepage: https://github.com/edamametechnologies/edamame_openclaw
-metadata: {"openclaw": {"requires": {"bins": ["edamame_posture"], "env": []}, "homepage": "https://github.com/edamametechnologies/edamame_openclaw", "install": [{"id": "brew", "kind": "brew", "formula": "edamametechnologies/tap/edamame-posture", "bins": ["edamame_posture"], "label": "Install EDAMAME Posture (brew)", "os": ["darwin"]}, {"id": "shell-linux", "kind": "shell", "command": "curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/edamametechnologies/edamame_posture/main/install.sh | sh", "bins": ["edamame_posture"], "label": "Install EDAMAME Posture (Linux)", "os": ["linux"]}]}}
+metadata: {"openclaw": {"requires": {"bins": [], "env": []}, "homepage": "https://github.com/edamametechnologies/edamame_openclaw", "install": [{"id": "brew", "kind": "brew", "formula": "edamametechnologies/tap/edamame-posture", "bins": ["edamame_posture"], "label": "Install EDAMAME Posture CLI (brew)", "os": ["darwin"]}, {"id": "shell-linux", "kind": "shell", "command": "curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/edamametechnologies/edamame_posture/main/install.sh", "bins": ["edamame_posture"], "label": "Install EDAMAME Posture CLI (Linux)", "os": ["linux"]}]}}
 trigger:
   - EDAMAME posture
   - posture tools
