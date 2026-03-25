@@ -47,6 +47,7 @@ mkdir -p "$OPENCLAW_DIR/extensions/edamame"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-extrapolator"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-posture"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/state"
+mkdir -p "$OPENCLAW_DIR/edamame-openclaw/service"
 
 # Step 1: Install MCP plugin
 PLUGIN_SRC="$SOURCE_ROOT/extensions/edamame"
@@ -82,6 +83,16 @@ fi
 if [ -f "$SOURCE_ROOT/package.json" ]; then
     cp "$SOURCE_ROOT/package.json" "$OPENCLAW_DIR/edamame-openclaw/package.json"
 fi
+
+# Step 3b: Install healthcheck service files
+SERVICE_SRC="$SOURCE_ROOT/service"
+SERVICE_DST="$OPENCLAW_DIR/edamame-openclaw/service"
+for f in healthcheck_cli.mjs health.mjs; do
+    if [ -f "$SERVICE_SRC/$f" ]; then
+        cp "$SERVICE_SRC/$f" "$SERVICE_DST/$f"
+    fi
+done
+echo "  healthcheck service installed to $SERVICE_DST"
 
 # Step 4: Enable the plugin if openclaw CLI is available
 if command -v openclaw >/dev/null 2>&1; then

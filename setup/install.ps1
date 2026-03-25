@@ -22,7 +22,8 @@ $Dirs = @(
     (Join-Path $OpenClawDir "extensions\edamame"),
     (Join-Path $OpenClawDir "skills\edamame-extrapolator"),
     (Join-Path $OpenClawDir "skills\edamame-posture"),
-    (Join-Path $OpenClawDir "edamame-openclaw\state")
+    (Join-Path $OpenClawDir "edamame-openclaw\state"),
+    (Join-Path $OpenClawDir "edamame-openclaw\service")
 )
 foreach ($d in $Dirs) {
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
@@ -64,6 +65,17 @@ if (Test-Path $SkillPosSrc) {
 $PkgSrc = Join-Path $SourceRoot "package.json"
 $PkgDst = Join-Path $OpenClawDir "edamame-openclaw\package.json"
 if (Test-Path $PkgSrc) { Copy-Item -Force $PkgSrc $PkgDst }
+
+# Step 3b: Install healthcheck service files
+$ServiceSrc = Join-Path $SourceRoot "service"
+$ServiceDst = Join-Path $OpenClawDir "edamame-openclaw\service"
+foreach ($f in @("healthcheck_cli.mjs", "health.mjs")) {
+    $src = Join-Path $ServiceSrc $f
+    if (Test-Path $src) {
+        Copy-Item -Force $src (Join-Path $ServiceDst $f)
+    }
+}
+Write-Host "  healthcheck service installed to $ServiceDst"
 
 # Step 4: Try to enable plugin via openclaw CLI
 $oc = Get-Command openclaw -ErrorAction SilentlyContinue
