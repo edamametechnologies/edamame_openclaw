@@ -204,7 +204,7 @@ Call the `upsert_behavioral_model` MCP tool with a JSON payload. Format:
     }
   ],
   "contributors": [],
-  "version": "3.0",
+  "version": "1.1.3",
   "hash": "",
   "ingested_at": "ISO-8601"
 }
@@ -218,6 +218,8 @@ Rules for the behavioral model:
 - Always include `ingested_at` (current ISO-8601 timestamp)
 - Always include `hash` (empty string is acceptable when unknown)
 - Always include `contributors: []` when pushing a single-agent slice.
+- Set `version` to the EDAMAME plugin package version (currently `1.1.3`).
+  Do not invent version strings; use the version from the installed package.
 - Populate all prediction arrays explicitly. Use `[]` when unknown.
 - Keep each array compact (usually <= 5 entries) and high-signal only.
 - Do not fill `not_expected_*` arrays unless absolutely certain.
