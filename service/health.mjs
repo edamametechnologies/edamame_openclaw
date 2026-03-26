@@ -28,14 +28,36 @@ async function readPsk(config) {
   if (envPsk) return envPsk;
   const pairingPsk = await readFirstLine(config.pskFile);
   if (pairingPsk) return pairingPsk;
-  const legacyPsk = await readFirstLine(config.legacyPskFile);
-  return legacyPsk;
+  const simplePsk = await readFirstLine(config.simplePskFile);
+  return simplePsk;
+}
+
+async function parseResponseJson(response) {
+  const contentType = String(response.headers?.get?.("content-type") || "");
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+  const raw = await response.text();
+  const lines = raw.split(/\r?\n/);
+  const dataPayloads = [];
+  for (const line of lines) {
+    if (line.startsWith("data: ")) {
+      dataPayloads.push(line.slice("data: ".length));
+    }
+  }
+  if (dataPayloads.length > 0) {
+    return JSON.parse(dataPayloads.join(""));
+  }
+  return JSON.parse(raw.trim());
 }
 
 function classifyError(message) {
   const text = String(message || "").toLowerCase();
   if (text.includes("econnrefused") || text.includes("fetch failed") || text.includes("timeout")) {
     return { reason: "edamame_mcp_unreachable", message: String(message) };
+  }
+  if (text.includes("psk_missing") || text.includes("no psk")) {
+    return { reason: "edamame_mcp_psk_missing", message: String(message) };
   }
   if (text.includes("http_401") || text.includes("unauthorized") || text.includes("auth")) {
     return { reason: "edamame_mcp_auth_failed", message: String(message) };
@@ -91,24 +113,31 @@ async function callTool(toolName, args, config) {
       throw new Error(`http_${initRes.status}: ${body.slice(0, 1000)}`);
     }
 
-    const initJson = await initRes.json();
+    const initJson = await parseResponseJson(initRes);
     if (initJson?.error) {
       throw new Error(`initialize_error: ${initJson.error.message}`);
     }
 
     const sessionId = String(initRes.headers?.get?.("mcp-session-id") || "").trim() || null;
 
-    const toolHeaders = {
+    const baseHeaders = {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
       Authorization: `Bearer ${psk}`,
     };
-    if (sessionId) toolHeaders["Mcp-Session-Id"] = sessionId;
+    if (sessionId) baseHeaders["Mcp-Session-Id"] = sessionId;
+
+    await fetchImpl(config.endpoint, {
+      method: "POST",
+      headers: baseHeaders,
+      body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      signal: abortController.signal,
+    });
 
     const toolId = 2;
     const toolRes = await fetchImpl(config.endpoint, {
       method: "POST",
-      headers: toolHeaders,
+      headers: baseHeaders,
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: toolId,
@@ -123,7 +152,7 @@ async function callTool(toolName, args, config) {
       throw new Error(`http_${toolRes.status}: ${body.slice(0, 1000)}`);
     }
 
-    const toolJson = await toolRes.json();
+    const toolJson = await parseResponseJson(toolRes);
     if (toolJson?.error) {
       throw new Error(`tools_call_error: ${toolJson.error.message}`);
     }
@@ -162,7 +191,7 @@ export function resolveConfig(options = {}) {
     openclawDir,
     endpoint,
     pskFile: path.join(stateDir, "edamame-mcp.psk"),
-    legacyPskFile: path.join(home, ".edamame_psk"),
+    simplePskFile: path.join(home, ".edamame_psk"),
   };
 }
 
@@ -181,8 +210,14 @@ export async function runHealthcheck(config, options = {}) {
   );
 
   const hasPsk = await fileExists(config.pskFile);
-  const hasLegacyPsk = !hasPsk && (await fileExists(config.legacyPskFile));
-  addCheck("psk.file", hasPsk || hasLegacyPsk, hasPsk ? config.pskFile : config.legacyPskFile);
+  const hasSimplePsk = !hasPsk && (await fileExists(config.simplePskFile));
+  addCheck("psk.file", hasPsk || hasSimplePsk, hasPsk ? config.pskFile : config.simplePskFile);
+
+  if (!hasPsk && !hasSimplePsk) {
+    result.ok = true;
+    result.message = "awaiting_pairing";
+    return result;
+  }
 
   try {
     const [engineStatus, behavioralModel, verdict] = await Promise.all([
