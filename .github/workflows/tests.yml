@@ -72,8 +72,11 @@ jobs:
             extensions/edamame/index.ts \
             skill/edamame-extrapolator/SKILL.md \
             skill/edamame-posture/SKILL.md \
+            setup/install.sh \
+            setup/install.ps1 \
             setup/provision.sh \
-            setup/build_posture.sh; do
+            setup/build_posture.sh \
+            service/healthcheck_cli.mjs; do
             test -f "$f" || { echo "FAIL: $f not found"; exit 1; }
             echo "  OK: $f"
           done

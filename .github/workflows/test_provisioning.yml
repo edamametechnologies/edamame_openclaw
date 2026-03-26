@@ -300,6 +300,17 @@ jobs:
               sys.exit(1)
           "
 
+      # ── Healthcheck via real MCP ────────────────────────────────
+
+      - name: Run healthcheck against real MCP
+        shell: bash
+        env:
+          EDAMAME_MCP_ENDPOINT: http://127.0.0.1:3000/mcp
+        run: |
+          echo "--- Running healthcheck ---"
+          node "$OPENCLAW_DIR/edamame-openclaw/service/healthcheck_cli.mjs" --json || true
+          echo "--- Healthcheck completed ---"
+
       # ── Verify MCP reachability from plugin dir ─────────────────
 
       - name: Verify MCP tools list via curl (second session)
