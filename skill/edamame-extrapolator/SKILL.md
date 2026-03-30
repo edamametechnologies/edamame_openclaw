@@ -45,7 +45,7 @@ This skill supports two modes. **Always try compiled mode first.**
 
 Call `extrapolator_run_cycle` and report the result.
 
-The `extrapolator_run_cycle` tool (provided by the EDAMAME plugin):
+The `extrapolator_run_cycle` tool (provided by EDAMAME for OpenClaw):
 1. Reads recent OpenClaw session transcripts via the gateway API
 2. Deterministically extracts behavioral signals (domains, ports, commands,
    file paths) using compiled heuristics
@@ -57,7 +57,7 @@ This mode consumes zero OpenClaw agent LLM tokens. EDAMAME's own internal
 LLM (Portal-managed) handles the behavioral model generation.
 
 If `extrapolator_run_cycle` returns an error or is unavailable (e.g. the
-EDAMAME plugin is not installed or the OpenClaw CLI session APIs are
+EDAMAME for OpenClaw is not installed or the OpenClaw CLI session APIs are
 not available), fall back to Mode B.
 
 ### Mode B: LLM-Driven (Fallback)
@@ -218,7 +218,7 @@ Rules for the behavioral model:
 - Always include `ingested_at` (current ISO-8601 timestamp)
 - Always include `hash` (empty string is acceptable when unknown)
 - Always include `contributors: []` when pushing a single-agent slice.
-- Set `version` to the EDAMAME plugin package version (currently `1.1.3`).
+- Set `version` to the EDAMAME for OpenClaw package version (currently `1.1.3`).
   Do not invent version strings; use the version from the installed package.
 - Populate all prediction arrays explicitly. Use `[]` when unknown.
 - Keep each array compact (usually <= 5 entries) and high-signal only.

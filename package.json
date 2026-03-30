@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
-    "e2e:inject": "bash scripts/e2e_inject_intent.sh"
+    "e2e:inject": "bash tests/e2e_inject_intent.sh"
   },
   "devDependencies": {
     "tsx": "^4.19.0"

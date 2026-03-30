@@ -10,7 +10,7 @@ directory (~/.openclaw/). This is the lightweight local-install equivalent of
 the full VM provisioner (setup/provision.sh).
 
 What gets installed:
-  - extensions/edamame/    MCP plugin (index.ts + manifest)
+  - extensions/edamame/    MCP plugin (all runtime source files + manifest)
   - skills/edamame-*/      Extrapolator and posture skills
   - edamame-openclaw/      Package metadata (version tracking)
 
@@ -48,14 +48,21 @@ mkdir -p "$OPENCLAW_DIR/skills/edamame-extrapolator"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-posture"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/state"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/service"
+mkdir -p "$OPENCLAW_DIR/edamame-openclaw/setup"
+mkdir -p "$OPENCLAW_DIR/edamame-openclaw/assets"
 
 # Step 1: Install MCP plugin
 PLUGIN_SRC="$SOURCE_ROOT/extensions/edamame"
 PLUGIN_DST="$OPENCLAW_DIR/extensions/edamame"
 if [ -f "$PLUGIN_SRC/openclaw.plugin.json" ] && [ -f "$PLUGIN_SRC/index.ts" ]; then
-    cp "$PLUGIN_SRC/openclaw.plugin.json" "$PLUGIN_DST/openclaw.plugin.json"
-    cp "$PLUGIN_SRC/index.ts" "$PLUGIN_DST/index.ts"
-    echo "  edamame plugin installed to $PLUGIN_DST"
+    for f in openclaw.plugin.json index.ts session_payload.ts; do
+        if [ -f "$PLUGIN_SRC/$f" ]; then
+            cp "$PLUGIN_SRC/$f" "$PLUGIN_DST/$f"
+            echo "  edamame plugin file installed: $f"
+        else
+            echo "  WARNING: plugin file not found at $PLUGIN_SRC/$f" >&2
+        fi
+    done
 else
     echo "  WARNING: edamame plugin not found at $PLUGIN_SRC" >&2
 fi
@@ -83,6 +90,15 @@ fi
 if [ -f "$SOURCE_ROOT/package.json" ]; then
     cp "$SOURCE_ROOT/package.json" "$OPENCLAW_DIR/edamame-openclaw/package.json"
 fi
+
+# Step 3a: Install setup and asset files used by uninstall and icon discovery
+if [ -d "$SOURCE_ROOT/setup" ]; then
+    cp -R "$SOURCE_ROOT/setup/." "$OPENCLAW_DIR/edamame-openclaw/setup/"
+fi
+if [ -d "$SOURCE_ROOT/assets" ]; then
+    cp -R "$SOURCE_ROOT/assets/." "$OPENCLAW_DIR/edamame-openclaw/assets/"
+fi
+chmod +x "$OPENCLAW_DIR/edamame-openclaw/setup/"*.sh 2>/dev/null || true
 
 # Step 3b: Install healthcheck service files
 SERVICE_SRC="$SOURCE_ROOT/service"

@@ -16,7 +16,7 @@ source "$SCRIPT_DIR/agent_identity.sh"
 PAIR_ENDPOINT="${PAIR_ENDPOINT:-http://127.0.0.1:3000}"
 AGENT_TYPE="${AGENT_TYPE:-openclaw}"
 AGENT_INSTANCE_ID="${AGENT_INSTANCE_ID:-}"
-CLIENT_NAME="${CLIENT_NAME:-OpenClaw EDAMAME Plugin}"
+CLIENT_NAME="${CLIENT_NAME:-EDAMAME for OpenClaw}"
 PSK_FILE="${PSK_FILE:-$HOME/.openclaw/edamame-openclaw/state/edamame-mcp.psk}"
 POLL_INTERVAL=2
 TIMEOUT=60
@@ -31,7 +31,7 @@ Options:
   --endpoint URL          EDAMAME MCP base URL (default: http://127.0.0.1:3000)
   --agent-type TYPE       Agent type identifier (default: openclaw)
   --agent-instance-id ID  Agent instance ID (default: persisted stable deployment ID)
-  --client-name NAME      Display name (default: OpenClaw EDAMAME Plugin)
+  --client-name NAME      Display name (default: EDAMAME for OpenClaw)
   --psk-file PATH         Where to store the credential (default: ~/.openclaw/edamame-openclaw/state/edamame-mcp.psk)
   --timeout SECONDS       How long to wait for approval (default: 60)
   -h, --help              Show this help

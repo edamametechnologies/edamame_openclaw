@@ -23,7 +23,9 @@ $Dirs = @(
     (Join-Path $OpenClawDir "skills\edamame-extrapolator"),
     (Join-Path $OpenClawDir "skills\edamame-posture"),
     (Join-Path $OpenClawDir "edamame-openclaw\state"),
-    (Join-Path $OpenClawDir "edamame-openclaw\service")
+    (Join-Path $OpenClawDir "edamame-openclaw\service"),
+    (Join-Path $OpenClawDir "edamame-openclaw\setup"),
+    (Join-Path $OpenClawDir "edamame-openclaw\assets")
 )
 foreach ($d in $Dirs) {
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
@@ -32,7 +34,7 @@ foreach ($d in $Dirs) {
 # Step 1: Install MCP plugin
 $PluginSrc = Join-Path $SourceRoot "extensions\edamame"
 $PluginDst = Join-Path $OpenClawDir "extensions\edamame"
-foreach ($f in @("openclaw.plugin.json", "index.ts")) {
+foreach ($f in @("openclaw.plugin.json", "index.ts", "session_payload.ts")) {
     $src = Join-Path $PluginSrc $f
     if (Test-Path $src) {
         Copy-Item -Force $src (Join-Path $PluginDst $f)
@@ -65,6 +67,18 @@ if (Test-Path $SkillPosSrc) {
 $PkgSrc = Join-Path $SourceRoot "package.json"
 $PkgDst = Join-Path $OpenClawDir "edamame-openclaw\package.json"
 if (Test-Path $PkgSrc) { Copy-Item -Force $PkgSrc $PkgDst }
+
+# Step 3a: Install setup and asset files used by uninstall and icon discovery
+$SetupSrc = Join-Path $SourceRoot "setup"
+$SetupDst = Join-Path $OpenClawDir "edamame-openclaw\setup"
+if (Test-Path $SetupSrc) {
+    Copy-Item -Recurse -Force (Join-Path $SetupSrc "*") $SetupDst
+}
+$AssetsSrc = Join-Path $SourceRoot "assets"
+$AssetsDst = Join-Path $OpenClawDir "edamame-openclaw\assets"
+if (Test-Path $AssetsSrc) {
+    Copy-Item -Recurse -Force (Join-Path $AssetsSrc "*") $AssetsDst
+}
 
 # Step 3b: Install healthcheck service files
 $ServiceSrc = Join-Path $SourceRoot "service"

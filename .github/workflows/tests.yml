@@ -31,8 +31,12 @@ permissions: read-all
 
 jobs:
   test:
-    name: Install and test
-    runs-on: ubuntu-latest
+    name: Install and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
 
@@ -56,8 +60,9 @@ jobs:
       - name: Validate OpenClaw plugin manifest
         run: |
           echo "--- Validating OpenClaw plugin manifest ---"
-          test -f extensions/edamame/openclaw.plugin.json || { echo "FAIL: openclaw.plugin.json not found"; exit 1; }
           node -e "
+            const fs = require('fs');
+            if (!fs.existsSync('extensions/edamame/openclaw.plugin.json')) { console.error('FAIL: openclaw.plugin.json not found'); process.exit(1); }
             const m = require('./extensions/edamame/openclaw.plugin.json');
             console.log('Plugin id:', m.id);
             console.log('Plugin name:', m.name);
@@ -68,19 +73,41 @@ jobs:
       - name: Verify plugin structure
         run: |
           echo "--- Checking plugin file structure ---"
-          for f in \
-            extensions/edamame/index.ts \
-            skill/edamame-extrapolator/SKILL.md \
-            skill/edamame-posture/SKILL.md \
-            setup/install.sh \
-            setup/install.ps1 \
-            setup/provision.sh \
-            setup/build_posture.sh \
-            service/healthcheck_cli.mjs; do
-            test -f "$f" || { echo "FAIL: $f not found"; exit 1; }
-            echo "  OK: $f"
-          done
+          node -e "
+            const fs = require('fs');
+            const files = [
+              'extensions/edamame/index.ts',
+              'skill/edamame-extrapolator/SKILL.md',
+              'skill/edamame-posture/SKILL.md',
+              'setup/install.sh',
+              'setup/install.ps1',
+              'setup/provision.sh',
+              'setup/build_posture.sh',
+              'service/healthcheck_cli.mjs',
+            ];
+            let ok = true;
+            for (const f of files) {
+              if (!fs.existsSync(f)) { console.error('FAIL: ' + f + ' not found'); ok = false; }
+              else { console.log('  OK: ' + f); }
+            }
+            if (!ok) process.exit(1);
+          "
           echo "--- Plugin structure valid ---"
+
+      - name: Run manual install (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          echo "--- Running manual install ---"
+          bash setup/install.sh
+          echo "--- Manual install completed ---"
+
+      - name: Run manual install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          echo "--- Running manual install ---"
+          .\setup\install.ps1
+          echo "--- Manual install completed ---"
 
       - name: Run unit tests
         run: npm test
@@ -105,7 +132,7 @@ jobs:
         with:
           channel-id: "C072J0U9TH7"
           slack-message: |
-            *edamame_openclaw CI Failed*
+            *edamame_openclaw CI Failed (${{ matrix.os }})*
             Repository: ${{ github.repository }}
             Branch: ${{ github.ref }}
             Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

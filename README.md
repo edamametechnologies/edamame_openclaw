@@ -26,7 +26,7 @@ The extrapolator supports two execution modes, selectable via the
 
 Compiled mode is preferred for production: it eliminates per-cycle OpenClaw LLM
 costs while producing equivalent behavioral models. The LLM-driven mode remains
-available as a fallback when the EDAMAME plugin is unavailable or for
+available as a fallback when EDAMAME for OpenClaw is unavailable or for
 environments that benefit from richer agent reasoning.
 
 ```bash
@@ -270,6 +270,13 @@ Run triggers with `--agent-type openclaw`.
 | `setup/pair.sh` | App-mediated pairing for developer workstations (EDAMAME app) |
 | `setup/build_posture.sh` | Build `edamame_posture` natively inside a Lima VM |
 | `setup/lima-example-openclaw.yaml` | Example Lima VM template |
+
+## Docs
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/SETUP.md](docs/SETUP.md)
+- [docs/VALIDATION.md](docs/VALIDATION.md)
+- [E2E_TESTS.md](E2E_TESTS.md)
 
 ## Related Repositories
 
