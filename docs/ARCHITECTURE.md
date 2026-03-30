@@ -19,8 +19,6 @@
 | `service/health.mjs` / `service/healthcheck_cli.mjs` | local health and operator checks |
 | `setup/install.sh` / `setup/install.ps1` | per-user installation and plugin enablement |
 | `setup/pair.sh` | app-mediated pairing for workstation installs |
-| `setup/provision.sh` | full Lima or VM provisioning flow |
-| `setup/build_posture.sh` | build `edamame_posture` inside a VM |
 | `tests/plugin_helpers.test.ts` | helper-level contract coverage for payload trimming and identity logic |
 | `tests/e2e_inject_intent.sh` | local raw-session intent injection E2E |
 
@@ -46,10 +44,9 @@ Compiled mode is the default because it removes per-cycle OpenClaw LLM cost whil
 - The stable deployment identity is stored in `~/.edamame_openclaw_agent_instance_id`.
 - Credentials are read from `EDAMAME_MCP_PSK`, `~/.openclaw/edamame-openclaw/state/edamame-mcp.psk`, or `~/.edamame_psk`.
 - `setup/pair.sh` is the workstation pairing path.
-- `setup/provision.sh` is the VM and daemon provisioning path.
+- Lima VM provisioning has moved to [openclaw_security](https://github.com/edamametechnologies/openclaw_security).
 
 ## Design Constraints
 
 - EDAMAME remains the source of truth for posture, telemetry, and divergence state.
 - The OpenClaw plugin is intentionally broad, but it should keep pure helper logic split from tool registration so the plugin entrypoint stays reviewable and testable.
-- VM/Lima provisioning is a first-class use case, not an afterthought.

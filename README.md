@@ -29,10 +29,10 @@ costs while producing equivalent behavioral models. The LLM-driven mode remains
 available as a fallback when EDAMAME for OpenClaw is unavailable or for
 environments that benefit from richer agent reasoning.
 
-```bash
-EXTRAPOLATOR_MODE=compiled ./setup/provision.sh   # Default: zero LLM tokens
-EXTRAPOLATOR_MODE=llm ./setup/provision.sh        # Full agent LLM reasoning
-```
+Lima VM provisioning has moved to
+[openclaw_security](https://github.com/edamametechnologies/openclaw_security).
+Set `EXTRAPOLATOR_MODE=compiled` (default) or `EXTRAPOLATOR_MODE=llm` in that
+repo's `setup/provision.sh`.
 
 ## Components
 
@@ -158,7 +158,7 @@ The MCP server supports two auth modes, both sent as Bearer tokens:
   edamame-posture mcp-start 3000 "<PSK>"    # or: background-mcp-start
   ```
 
-  `setup/provision.sh` handles this for Lima VMs.
+  For Lima VMs, see [openclaw_security](https://github.com/edamametechnologies/openclaw_security) `setup/provision.sh`.
 
 The plugin reads the credential in this order:
 

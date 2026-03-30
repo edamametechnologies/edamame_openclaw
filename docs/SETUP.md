@@ -59,19 +59,9 @@ This ID is reused by pairing, cron jobs, provisioning, and compiled extrapolator
 
 ## Lima / VM Provisioning
 
-Provision the full stack inside a Lima VM:
-
-```bash
-EXTRAPOLATOR_MODE=compiled ./setup/provision.sh
-```
-
-Related assets:
-
-- `setup/provision.sh`
-- `setup/lima-example-openclaw.yaml`
-- `setup/build_posture.sh`
-
-Key environment variables include `EXTRAPOLATOR_MODE`, `EDAMAME_LLM_API_KEY`, `EDAMAME_LLM_PROVIDER`, and optional notification variables for Telegram or Slack.
+Lima VM provisioning scripts have moved to the
+[openclaw_security](https://github.com/edamametechnologies/openclaw_security)
+repository (`setup/provision.sh`, `setup/setup.sh`, `setup/start.sh`).
 
 ## Health and Verification
 
