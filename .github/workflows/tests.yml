@@ -81,8 +81,6 @@ jobs:
               'skill/edamame-posture/SKILL.md',
               'setup/install.sh',
               'setup/install.ps1',
-              'setup/provision.sh',
-              'setup/build_posture.sh',
               'service/healthcheck_cli.mjs',
             ];
             let ok = true;
