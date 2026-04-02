@@ -102,6 +102,21 @@ function _inferProcessPaths(commands: string[]): string[] {
 const _SENSITIVE_PATH_PATTERNS = [
     "~/.ssh/", "~/.aws/", "~/.config/gcloud/", "~/.kube/", "~/.gnupg/",
     "~/.docker/config.json", "~/.npmrc", "~/.netrc",
+    "~/.env", "~/.pgpass", "~/.pypirc", "~/.git-credentials",
+    "~/.vault-token", "~/.azure/", "~/.my.cnf",
+    "~/Library/Keychains/",
+    "~/Library/Application Support/Google/Chrome/",
+    "~/Library/Application Support/Chromium/",
+    "~/Library/Application Support/Firefox/",
+    "~/Library/Application Support/BraveSoftware/",
+    "~/AppData/Local/Google/Chrome/",
+    "~/AppData/Local/Chromium/",
+    "~/AppData/Local/Mozilla/Firefox/",
+    "~/AppData/Local/BraveSoftware/",
+    "~/AppData/Roaming/Mozilla/Firefox/Profiles/",
+    "~/AppData/Roaming/Microsoft/Credentials/",
+    "~/AppData/Roaming/Microsoft/Protect/",
+    "~/.config/google-chrome/", "~/.config/chromium/", "~/.mozilla/firefox/",
 ]
 
 export function _isSensitivePath(p: string): boolean {
