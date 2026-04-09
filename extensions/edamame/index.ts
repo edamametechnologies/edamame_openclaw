@@ -1089,7 +1089,7 @@ export default function register(api: any) {
         async execute(_id: string, params: { raw_sessions_json: string }) {
             const { text, isError } = await _callEdamameToolSafe("upsert_behavioral_model_from_raw_sessions", {
                 raw_sessions_json: params.raw_sessions_json,
-            }, { timeoutMs: 240_000 })
+            }, { timeoutMs: 240_000 }) // 240s: large payloads need extended time for LLM inference
             return isError ? _asError(text) : _asText(text)
         },
     })
@@ -1302,7 +1302,7 @@ export default function register(api: any) {
                 upsertResult = await _callEdamameTool(
                     "upsert_behavioral_model_from_raw_sessions",
                     { raw_sessions_json: rawJson },
-                    { timeoutMs: 240_000 },
+                    { timeoutMs: 240_000 }, // 240s: large payloads need extended time for LLM inference
                 )
             } catch (e: any) {
                 return _asText(
@@ -1317,10 +1317,12 @@ export default function register(api: any) {
 
             // Step 4: Verify read-back
             let model: string
+            let readBackError: string | undefined
             try {
                 model = await _callEdamameTool("get_behavioral_model", {})
-            } catch {
+            } catch (e: any) {
                 model = "{}"
+                readBackError = String(e?.message || e)
             }
             let readBackOk = false
             try {
@@ -1340,6 +1342,7 @@ export default function register(api: any) {
                     agent_type: agentType,
                     agent_instance_id: agentInstanceId,
                     read_back_ok: readBackOk,
+                    ...(readBackError ? { readback_error: readBackError } : {}),
                     upsert_summary: upsertResult.slice(0, 500),
                 }),
             )
