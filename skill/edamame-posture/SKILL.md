@@ -73,6 +73,36 @@ security-critical state must remain in the observer process, not in shared works
 - `get_divergence_verdict`
 - `get_divergence_history`
 - `get_divergence_engine_status`
+- `dismiss_divergence_evidence` -- dismiss a finding by stable key (reversible)
+- `undismiss_divergence_evidence` -- restore a previously dismissed finding
+
+### Vulnerability detector (safety floor)
+
+- `get_vulnerability_findings` -- latest CVE-aligned vulnerability report
+- `get_vulnerability_detector_status` -- detector enabled, interval, last run, finding count
+- `get_vulnerability_history` -- rolling history of vulnerability reports with provenance
+
+## Safety Floor
+
+The vulnerability detector runs five model-independent checks that operate
+even when no behavioral model has been pushed. These checks form a safety
+floor that detects concrete dangerous conditions regardless of whether the
+divergence engine is active:
+
+1. **Token exfiltration** -- anomalous sessions from agent processes accessing
+   sensitive credential files and making outbound connections.
+2. **Skill supply chain** -- blacklisted traffic combined with credential file
+   access, indicating a compromised skill or plugin dependency.
+3. **Credential harvest** -- sessions touching multiple distinct sensitive
+   credential categories simultaneously.
+4. **Sandbox exploitation** -- processes spawned from suspicious temporary
+   paths or using path-traversal patterns.
+5. **File system tampering** -- suspicious file writes to sensitive paths or
+   temp-staged executables detected by the FIM watcher.
+
+Findings at CRITICAL severity cannot be suppressed by LLM adjudication.
+The detector is enabled independently of the divergence engine via
+`set_vulnerability_detector_enabled`.
 
 ## Execution Rules
 
