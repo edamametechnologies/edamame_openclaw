@@ -257,48 +257,48 @@ jobs:
       - name: Verify package.json version
         shell: bash
         run: |
-          python3 -c "
-          import json, os, sys
-          pkg_path = os.path.join(os.environ['OPENCLAW_DIR'], 'edamame-openclaw', 'package.json')
-          pkg = json.load(open(pkg_path))
-          v = pkg.get('version', '')
-          if not v:
-              print('FAIL: no version in package.json')
-              sys.exit(1)
-          print(f'Installed version: {v}')
-          "
+          python3 - <<'PYVER'
+import json, os, sys
+pkg_path = os.path.join(os.environ['OPENCLAW_DIR'], 'edamame-openclaw', 'package.json')
+pkg = json.load(open(pkg_path))
+v = pkg.get('version', '')
+if not v:
+    print('FAIL: no version in package.json')
+    sys.exit(1)
+print(f'Installed version: {v}')
+PYVER
 
       # ── Verify plugin manifest fields ────────────────────────────
 
       - name: Verify plugin manifest
         shell: bash
         run: |
-          python3 -c "
-          import json, os, sys
-          manifest_path = os.path.join(os.environ['OPENCLAW_DIR'], 'extensions', 'edamame', 'openclaw.plugin.json')
-          m = json.load(open(manifest_path))
-          for key in ['id', 'name', 'version']:
-              if not m.get(key):
-                  print(f'FAIL: missing {key} in plugin manifest')
-                  sys.exit(1)
-              print(f'  {key}: {m[key]}')
-          print('Plugin manifest valid')
-          "
+          python3 - <<'PYMANIFEST'
+import json, os, sys
+manifest_path = os.path.join(os.environ['OPENCLAW_DIR'], 'extensions', 'edamame', 'openclaw.plugin.json')
+m = json.load(open(manifest_path))
+for key in ['id', 'name', 'version']:
+    if not m.get(key):
+        print(f'FAIL: missing {key} in plugin manifest')
+        sys.exit(1)
+    print(f'  {key}: {m[key]}')
+print('Plugin manifest valid')
+PYMANIFEST
 
       # ── Verify state directory ───────────────────────────────────
 
       - name: Verify state directory exists
         shell: bash
         run: |
-          python3 -c "
-          import os, sys
-          state = os.path.join(os.environ['OPENCLAW_DIR'], 'edamame-openclaw', 'state')
-          if os.path.isdir(state):
-              print(f'  OK: state dir exists ({state})')
-          else:
-              print(f'  FAIL: state dir missing ({state})')
-              sys.exit(1)
-          "
+          python3 - <<'PYSTATE'
+import os, sys
+state = os.path.join(os.environ['OPENCLAW_DIR'], 'edamame-openclaw', 'state')
+if os.path.isdir(state):
+    print(f'  OK: state dir exists ({state})')
+else:
+    print(f'  FAIL: state dir missing ({state})')
+    sys.exit(1)
+PYSTATE
 
       # ── Healthcheck via real MCP ────────────────────────────────
 
@@ -428,34 +428,34 @@ jobs:
 
           check_sessions() {
             local target_desc="$1"
-            "$CLI" rpc get_current_sessions 2>/dev/null | python3 -c "
-          import json, sys
-          raw = sys.stdin.read().strip()
-          if raw.startswith('Result: '):
-              raw = raw[len('Result: '):]
-          if not raw or raw == 'null':
-              print('  total_sessions=0')
-              sys.exit(1)
-          try:
-              data = json.loads(raw)
-              if isinstance(data, str):
-                  data = json.loads(data)
-          except Exception as e:
-              print(f'  sessions: parse error: {e}')
-              print(f'  raw_prefix: {raw[:200]}')
-              sys.exit(1)
-          sessions = data if isinstance(data, list) else data.get('sessions', [])
-          print(f'  total_sessions={len(sessions)}')
-          target = sys.argv[1]
-          matched = [s.get('dst_addr','') + ':' + str(s.get('dst_port','')) for s in sessions if target in json.dumps(s)]
-          if matched:
-              print(f'  matched: {matched[:5]}')
-              sys.exit(0)
-          dst_sample = [s.get('dst_addr','') + ':' + str(s.get('dst_port','')) for s in sessions[:10]]
-          if dst_sample:
-              print(f'  sample_destinations: {dst_sample}')
-          sys.exit(1)
-          " "$target_desc" 2>&1
+            "$CLI" rpc get_current_sessions 2>/dev/null | python3 - "$target_desc" <<'PYSESS'
+import json, sys
+raw = sys.stdin.read().strip()
+if raw.startswith('Result: '):
+    raw = raw[len('Result: '):]
+if not raw or raw == 'null':
+    print('  total_sessions=0')
+    sys.exit(1)
+try:
+    data = json.loads(raw)
+    if isinstance(data, str):
+        data = json.loads(data)
+except Exception as e:
+    print(f'  sessions: parse error: {e}')
+    print(f'  raw_prefix: {raw[:200]}')
+    sys.exit(1)
+sessions = data if isinstance(data, list) else data.get('sessions', [])
+print(f'  total_sessions={len(sessions)}')
+target = sys.argv[1]
+matched = [s.get('dst_addr','') + ':' + str(s.get('dst_port','')) for s in sessions if target in json.dumps(s)]
+if matched:
+    print(f'  matched: {matched[:5]}')
+    sys.exit(0)
+dst_sample = [s.get('dst_addr','') + ':' + str(s.get('dst_port','')) for s in sessions[:10]]
+if dst_sample:
+    print(f'  sample_destinations: {dst_sample}')
+sys.exit(1)
+PYSESS
             return $?
           }
 
@@ -534,16 +534,17 @@ jobs:
             local max_wait=$((DIVERGENCE_MODEL_MIN_AGE_SECS + 60))
             while ((waited <= max_wait)); do
               local status
-              status="$(EDAMAME_CLI_BIN="$CLI" TRIGGERS_PATH="$TRIGGERS_DIR" python3 -c "
-          import os, sys
-          sys.path.insert(0, os.environ['TRIGGERS_PATH'])
-          from _edamame_cli import cli_rpc
-          s = cli_rpc('get_divergence_engine_status')
-          age = s.get('model_age_secs') if isinstance(s, dict) else 0
-          contrib = s.get('contributor_count') if isinstance(s, dict) else 0
-          running = bool(s.get('running')) if isinstance(s, dict) else False
-          print(f'{int(age or 0)}|{int(contrib or 0)}|{1 if running else 0}')
-          " 2>/dev/null || echo "0|0|0")"
+              status="$(EDAMAME_CLI_BIN="$CLI" TRIGGERS_PATH="$TRIGGERS_DIR" python3 - <<'PYSTAT'
+import os, sys
+sys.path.insert(0, os.environ['TRIGGERS_PATH'])
+from _edamame_cli import cli_rpc
+s = cli_rpc('get_divergence_engine_status')
+age = s.get('model_age_secs') if isinstance(s, dict) else 0
+contrib = s.get('contributor_count') if isinstance(s, dict) else 0
+running = bool(s.get('running')) if isinstance(s, dict) else False
+print(f'{int(age or 0)}|{int(contrib or 0)}|{1 if running else 0}')
+PYSTAT
+              )" || status="0|0|0"
               local age="${status%%|*}"
               local rest="${status#*|}"
               local contrib="${rest%%|*}"
@@ -812,25 +813,25 @@ jobs:
         shell: bash
         run: |
           echo "--- Verifying uninstall ---"
-          python3 -c "
-          import os, sys
-          ocdir = os.environ['OPENCLAW_DIR']
-          dirs = [
-              os.path.join(ocdir, 'extensions', 'edamame'),
-              os.path.join(ocdir, 'skills', 'edamame-extrapolator'),
-              os.path.join(ocdir, 'skills', 'edamame-posture'),
-              os.path.join(ocdir, 'edamame-openclaw'),
-          ]
-          fail = False
-          for d in dirs:
-              if os.path.isdir(d):
-                  print(f'  FAIL: {d} still exists')
-                  fail = True
-              else:
-                  print(f'  OK: {d} removed')
-          if fail:
-              sys.exit(1)
-          "
+          python3 - <<'PYCHK'
+import os, sys
+ocdir = os.environ['OPENCLAW_DIR']
+dirs = [
+    os.path.join(ocdir, 'extensions', 'edamame'),
+    os.path.join(ocdir, 'skills', 'edamame-extrapolator'),
+    os.path.join(ocdir, 'skills', 'edamame-posture'),
+    os.path.join(ocdir, 'edamame-openclaw'),
+]
+fail = False
+for d in dirs:
+    if os.path.isdir(d):
+        print(f'  FAIL: {d} still exists')
+        fail = True
+    else:
+        print(f'  OK: {d} removed')
+if fail:
+    sys.exit(1)
+PYCHK
           echo "--- Uninstall verified ---"
 
       # ── Slack alert ──────────────────────────────────────────────
