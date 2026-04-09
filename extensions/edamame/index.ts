@@ -452,14 +452,28 @@ async function _callEdamameTool(
 ): Promise<string> {
     const timeoutMs = options?.timeoutMs ?? 60_000
     const client = _getClient()
-    if (!client) return "ERROR: missing EDAMAME MCP credential (~/.edamame_psk or EDAMAME_MCP_PSK). Run setup/pair.sh for app-mediated pairing or setup/provision.sh for VM/daemon."
-
-    try {
-        return await client.callTool(toolName, kvArgs, timeoutMs)
-    } catch (e: any) {
-        const msg = String(e?.message || e)
-        return `ERROR: ${msg}`
+    if (!client) {
+        throw new Error("missing EDAMAME MCP credential (~/.edamame_psk or EDAMAME_MCP_PSK). Run setup/pair.sh for app-mediated pairing or setup/provision.sh for VM/daemon.")
     }
+
+    return await client.callTool(toolName, kvArgs, timeoutMs)
+}
+
+async function _callEdamameToolSafe(
+    toolName: string,
+    kvArgs: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+): Promise<{ text: string; isError: boolean }> {
+    try {
+        const text = await _callEdamameTool(toolName, kvArgs, options)
+        return { text, isError: false }
+    } catch (e: any) {
+        return { text: String(e?.message || e), isError: true }
+    }
+}
+
+function _asError(message: string): ToolResult {
+    return { content: [{ type: "text", text: `ERROR: ${message}` }] }
 }
 
 type GetSessionsArgs = {
@@ -691,6 +705,7 @@ export {
     _isLegacyAgentInstanceId,
     _resolveAgentInstanceId,
     _callEdamameTool,
+    _callEdamameToolSafe,
     _getPsk,
 }
 export type { GetSessionsArgs, OpenClawSession }
@@ -702,8 +717,8 @@ export default function register(api: any) {
         description: "EDAMAME MCP: list all security findings (todos). Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("advisor_get_todos", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("advisor_get_todos", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -736,8 +751,9 @@ export default function register(api: any) {
                 upstreamArgs.limit = Math.floor(params.limit)
             }
 
-            const out = await _callEdamameTool("get_sessions", upstreamArgs)
-            return _asText(_filterGetSessionsPayload(out, params))
+            const { text, isError } = await _callEdamameToolSafe("get_sessions", upstreamArgs)
+            if (isError) return _asError(text)
+            return _asText(_filterGetSessionsPayload(text, params))
         },
     })
 
@@ -747,8 +763,9 @@ export default function register(api: any) {
             "EDAMAME MCP: get sessions flagged as statistically anomalous. High-value signal for detecting prompt injection or data exfiltration. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_anomalous_sessions", {})
-            return _asText(_trimSessionList(out))
+            const { text, isError } = await _callEdamameToolSafe("get_anomalous_sessions", {})
+            if (isError) return _asError(text)
+            return _asText(_trimSessionList(text))
         },
     })
 
@@ -758,8 +775,9 @@ export default function register(api: any) {
             "EDAMAME MCP: get sessions to known-malicious destinations. Highest-confidence signal — any match indicates compromise. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_blacklisted_sessions", {})
-            return _asText(_trimSessionList(out))
+            const { text, isError } = await _callEdamameToolSafe("get_blacklisted_sessions", {})
+            if (isError) return _asError(text)
+            return _asText(_trimSessionList(text))
         },
     })
 
@@ -769,8 +787,9 @@ export default function register(api: any) {
             "EDAMAME MCP: get sessions violating whitelist/policy rules. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_exceptions", {})
-            return _asText(_trimSessionList(out))
+            const { text, isError } = await _callEdamameToolSafe("get_exceptions", {})
+            if (isError) return _asError(text)
+            return _asText(_trimSessionList(text))
         },
     })
 
@@ -781,8 +800,8 @@ export default function register(api: any) {
             "EDAMAME MCP: get all discovered LAN devices with IPs, open ports, CVEs, OS fingerprints. Enables lateral-movement detection. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_lan_devices", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("get_lan_devices", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -792,8 +811,8 @@ export default function register(api: any) {
             "EDAMAME MCP: get this host's own device info as seen by the LAN scanner — IPs, MAC, open ports, OS fingerprint. Enables vulnerability detection: detect internet-exposed services (e.g. STRIKE-class exposed gateways) before an attacker connects. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_lan_host_device", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("get_lan_host_device", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -803,8 +822,8 @@ export default function register(api: any) {
             "EDAMAME MCP: get HIBP breach data for all monitored identities. Enables credential-stuffing detection. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_breaches", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("get_breaches", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -822,8 +841,8 @@ export default function register(api: any) {
             required: ["email"],
         },
         async execute(_id: string, params: { email: string }) {
-            const out = await _callEdamameTool("add_pwned_email", { email: params.email })
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("add_pwned_email", { email: params.email })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -840,8 +859,8 @@ export default function register(api: any) {
             required: ["email"],
         },
         async execute(_id: string, params: { email: string }) {
-            const out = await _callEdamameTool("remove_pwned_email", { email: params.email })
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("remove_pwned_email", { email: params.email })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -851,8 +870,8 @@ export default function register(api: any) {
             "EDAMAME MCP: list all emails currently monitored for HIBP breaches with per-email summary and breach counts. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_pwned_emails", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("get_pwned_emails", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -870,8 +889,8 @@ export default function register(api: any) {
             required: ["enabled"],
         },
         async execute(_id: string, params: { enabled: boolean }) {
-            const out = await _callEdamameTool("set_lan_auto_scan", { enabled: params.enabled })
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("set_lan_auto_scan", { enabled: params.enabled })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -891,9 +910,14 @@ export default function register(api: any) {
             },
         },
         async execute(_id: string, params: { full?: boolean }) {
-            const out = await _callEdamameTool("get_score", { full: params.full === true })
-            if (params.full) return _asText(out)
-            return _asText(_trimScorePayload(out))
+            const { text, isError } = await _callEdamameToolSafe("get_score", { full: params.full === true })
+            if (isError) return _asError(text)
+            // When full=false (default), heavy threat fields (description,
+            // implementation, remediation, rollback) are stripped from the
+            // response by _trimScorePayload to keep context small. Pass
+            // full=true (via the "full" parameter) to get unmodified output.
+            if (params.full) return _asText(text)
+            return _asText(_trimScorePayload(text))
         },
     })
 
@@ -930,12 +954,12 @@ export default function register(api: any) {
                       ? JSON.stringify(params.window)
                       : ""
             if (!payload) {
-                return _asText("ERROR: missing window_json (or window object) payload")
+                return _asError("missing window_json (or window object) payload")
             }
-            const out = await _callEdamameTool("upsert_behavioral_model", {
+            const { text, isError } = await _callEdamameToolSafe("upsert_behavioral_model", {
                 window_json: payload,
             })
-            return _asText(out)
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -945,8 +969,8 @@ export default function register(api: any) {
             "EDAMAME MCP: fetch the current behavioral model used by the divergence engine. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_behavioral_model", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("get_behavioral_model", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -961,8 +985,8 @@ export default function register(api: any) {
             },
         },
         async execute(_id: string, params: { limit?: number }) {
-            const out = await _callEdamameTool("advisor_get_action_history", { limit: params.limit ?? 50 })
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("advisor_get_action_history", { limit: params.limit ?? 50 })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -978,10 +1002,10 @@ export default function register(api: any) {
             },
         },
         async execute(_id: string, params: { confirmation_level?: "auto" | "manual" }) {
-            const out = await _callEdamameTool("agentic_process_todos", {
+            const { text, isError } = await _callEdamameToolSafe("agentic_process_todos", {
                 confirmation_level: params.confirmation_level ?? "manual",
             })
-            return _asText(out)
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -990,8 +1014,8 @@ export default function register(api: any) {
         description: "EDAMAME MCP: get current agentic workflow status. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("agentic_get_workflow_status", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("agentic_get_workflow_status", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1008,8 +1032,8 @@ export default function register(api: any) {
             required: ["action_id"],
         },
         async execute(_id: string, params: { action_id: string }) {
-            const out = await _callEdamameTool("agentic_execute_action", { action_id: params.action_id })
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("agentic_execute_action", { action_id: params.action_id })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1025,8 +1049,8 @@ export default function register(api: any) {
             required: ["action_id"],
         },
         async execute(_id: string, params: { action_id: string }) {
-            const out = await _callEdamameTool("advisor_undo_action", { action_id: params.action_id })
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("advisor_undo_action", { action_id: params.action_id })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1035,8 +1059,8 @@ export default function register(api: any) {
         description: "EDAMAME MCP: undo all actions from current session (SIDE EFFECTS).",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("advisor_undo_all_actions", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("advisor_undo_all_actions", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1063,10 +1087,10 @@ export default function register(api: any) {
             required: ["raw_sessions_json"],
         },
         async execute(_id: string, params: { raw_sessions_json: string }) {
-            const out = await _callEdamameTool("upsert_behavioral_model_from_raw_sessions", {
+            const { text, isError } = await _callEdamameToolSafe("upsert_behavioral_model_from_raw_sessions", {
                 raw_sessions_json: params.raw_sessions_json,
-            }, { timeoutMs: 120_000 })
-            return _asText(out)
+            }, { timeoutMs: 240_000 })
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1179,8 +1203,8 @@ export default function register(api: any) {
                 // LLM creates one empty prediction per entry.
                 sessions = _collapseRunSubSessions(sessions)
             } catch (e: any) {
-                return _asText(
-                    `ERROR: Failed to enumerate OpenClaw sessions: ${String(e?.stderr || e?.message || e).slice(0, 500)}`,
+                return _asError(
+                    `Failed to enumerate OpenClaw sessions: ${String(e?.stderr || e?.message || e).slice(0, 500)}`,
                 )
             }
 
@@ -1244,11 +1268,16 @@ export default function register(api: any) {
                     ingested_at: now.toISOString(),
                 }
 
-                const heartbeatResult = await _callEdamameTool(
-                    "upsert_behavioral_model",
-                    { window_json: JSON.stringify(heartbeatWindow) },
-                    { timeoutMs: 30_000 },
-                )
+                let heartbeatSummary: string
+                try {
+                    heartbeatSummary = await _callEdamameTool(
+                        "upsert_behavioral_model",
+                        { window_json: JSON.stringify(heartbeatWindow) },
+                        { timeoutMs: 30_000 },
+                    )
+                } catch (e: any) {
+                    return _asError(`Heartbeat upsert failed: ${String(e?.message || e).slice(0, 500)}`)
+                }
 
                 return _asText(
                     JSON.stringify({
@@ -1258,7 +1287,7 @@ export default function register(api: any) {
                         reason: "heartbeat",
                         agent_type: agentType,
                         agent_instance_id: agentInstanceId,
-                        upsert_summary: String(heartbeatResult).slice(0, 500),
+                        upsert_summary: String(heartbeatSummary).slice(0, 500),
                     }),
                 )
             }
@@ -1268,25 +1297,31 @@ export default function register(api: any) {
 
             // Step 3: Forward to EDAMAME's internal LLM
             const rawJson = JSON.stringify(rawPayload)
-            const upsertResult = await _callEdamameTool(
-                "upsert_behavioral_model_from_raw_sessions",
-                { raw_sessions_json: rawJson },
-                { timeoutMs: 120_000 },
-            )
-
-            if (upsertResult.startsWith("ERROR:")) {
+            let upsertResult: string
+            try {
+                upsertResult = await _callEdamameTool(
+                    "upsert_behavioral_model_from_raw_sessions",
+                    { raw_sessions_json: rawJson },
+                    { timeoutMs: 240_000 },
+                )
+            } catch (e: any) {
                 return _asText(
                     JSON.stringify({
                         success: false,
                         mode: "compiled",
                         sessions_processed: sessions.length,
-                        error: upsertResult,
+                        error: String(e?.message || e),
                     }),
                 )
             }
 
             // Step 4: Verify read-back
-            const model = await _callEdamameTool("get_behavioral_model", {})
+            let model: string
+            try {
+                model = await _callEdamameTool("get_behavioral_model", {})
+            } catch {
+                model = "{}"
+            }
             let readBackOk = false
             try {
                 const modelParsed = JSON.parse(model)
@@ -1319,8 +1354,8 @@ export default function register(api: any) {
             "EDAMAME MCP: get the latest divergence detection verdict (CLEAN/DIVERGENCE/NO_MODEL/STALE). Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
-            const out = await _callEdamameTool("get_divergence_verdict", {})
-            return _asText(out)
+            const { text, isError } = await _callEdamameToolSafe("get_divergence_verdict", {})
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1336,10 +1371,10 @@ export default function register(api: any) {
             },
         },
         async execute(_id: string, params: { limit?: number }) {
-            const out = await _callEdamameTool("get_divergence_history", {
+            const { text, isError } = await _callEdamameToolSafe("get_divergence_history", {
                 limit: params.limit ?? 10,
             })
-            return _asText(out)
+            return isError ? _asError(text) : _asText(text)
         },
     })
 
@@ -1384,9 +1419,7 @@ export default function register(api: any) {
             const channel = params.channel || _getAlertChannel()
             const to = params.to || _getAlertTo()
             if (!to) {
-                return _asText(
-                    "ERROR: No recipient. Set ALERT_TO env var or pass 'to' parameter.",
-                )
+                return _asError("No recipient. Set ALERT_TO env var or pass 'to' parameter.")
             }
 
             const { execSync } = require("node:child_process")
@@ -1414,7 +1447,7 @@ export default function register(api: any) {
                 return _asText(`Alert sent via ${channel} to ${to}:\n${out.trim()}`)
             } catch (e: any) {
                 const stderr = e?.stderr || e?.message || String(e)
-                return _asText(`ERROR sending alert: ${stderr.slice(0, 500)}`)
+                return _asError(`sending alert: ${String(stderr).slice(0, 500)}`)
             }
         },
     })
