@@ -54,6 +54,11 @@ jobs:
         shell: bash
         run: echo "EDAMAME_POSTURE=$EDAMAME_BINARY_PATH" >> "$GITHUB_ENV"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -818,30 +823,51 @@ jobs:
 
       # ── Verify uninstall ─────────────────────────────────────────
 
-      - name: Verify uninstall
+      - name: Verify uninstall (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           echo "--- Verifying uninstall ---"
-          python3 - <<'PYCHK'
-          import os, sys
-          ocdir = os.environ['OPENCLAW_DIR']
-          dirs = [
-              os.path.join(ocdir, 'extensions', 'edamame'),
-              os.path.join(ocdir, 'skills', 'edamame-extrapolator'),
-              os.path.join(ocdir, 'skills', 'edamame-posture'),
-              os.path.join(ocdir, 'edamame-openclaw'),
-          ]
-          fail = False
-          for d in dirs:
-              if os.path.isdir(d):
-                  print(f'  FAIL: {d} still exists')
-                  fail = True
-              else:
-                  print(f'  OK: {d} removed')
-          if fail:
-              sys.exit(1)
-          PYCHK
+          fail=0
+          for d in \
+            "$OPENCLAW_DIR/extensions/edamame" \
+            "$OPENCLAW_DIR/skills/edamame-extrapolator" \
+            "$OPENCLAW_DIR/skills/edamame-posture" \
+            "$OPENCLAW_DIR/edamame-openclaw"; do
+            if [[ -d "$d" ]]; then
+              echo "  FAIL: $d still exists"
+              fail=1
+            else
+              echo "  OK: $d removed"
+            fi
+          done
+          if [[ "$fail" -ne 0 ]]; then
+            exit 1
+          fi
           echo "--- Uninstall verified ---"
+
+      - name: Verify uninstall (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "--- Verifying uninstall ---"
+          $fail = $false
+          $dirs = @(
+            "$env:OPENCLAW_DIR\extensions\edamame",
+            "$env:OPENCLAW_DIR\skills\edamame-extrapolator",
+            "$env:OPENCLAW_DIR\skills\edamame-posture",
+            "$env:OPENCLAW_DIR\edamame-openclaw"
+          )
+          foreach ($d in $dirs) {
+            if (Test-Path $d) {
+              Write-Host "  FAIL: $d still exists"
+              $fail = $true
+            } else {
+              Write-Host "  OK: $d removed"
+            }
+          }
+          if ($fail) { exit 1 }
+          Write-Host "--- Uninstall verified ---"
 
       # ── Slack alert ──────────────────────────────────────────────
 
