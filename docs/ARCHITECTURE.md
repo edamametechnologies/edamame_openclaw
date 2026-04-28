@@ -9,6 +9,8 @@
 3. The plugin forwards data to the local EDAMAME MCP endpoint over HTTP using a PSK or app-mediated credential.
 4. EDAMAME stores the behavioral contributor, correlates it with live network and host telemetry, and returns read-only posture and divergence state through the plugin tools.
 
+> **External transcript observer (additive, host-resident only).** Starting with `edamame_core` 1.2.3, EDAMAME runs its own host-side observer that probes `~/.openclaw/sessions/` and a few sibling locations for OpenClaw transcripts. OpenClaw normally runs in Lima or remote, so on most workstations the observer reports `transcripts_root_accessible=false` and produces no slices -- this is expected and not an error. The plugin's existing MCP path keeps working unchanged. Operators can still pause / resume / run-now per agent from the EDAMAME app's AI / Config tab; if the OpenClaw plugin is installed and the observer is paused, EDAMAME's `unsecured_openclaw` internal threat trips on the next score cycle (the threat is purely policy-driven; it does not require host-resident transcripts to exist).
+
 ## Core Components
 
 | Path | Responsibility |
