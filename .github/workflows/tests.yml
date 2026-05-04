@@ -94,7 +94,6 @@ jobs:
             const fs = require('fs');
             const files = [
               'extensions/edamame/index.ts',
-              'skill/edamame-extrapolator/SKILL.md',
               'skill/edamame-posture/SKILL.md',
               'setup/install.sh',
               'setup/install.ps1',

@@ -11,8 +11,12 @@ the full VM provisioner (setup/provision.sh).
 
 What gets installed:
   - extensions/edamame/    MCP plugin (all runtime source files + manifest)
-  - skills/edamame-*/      Extrapolator and posture skills
+  - skills/edamame-posture/ On-demand posture/remediation facade skill
   - edamame-openclaw/      Package metadata (version tracking)
+
+Reasoning-plane publication is handled by the compiled `extrapolator_run_cycle`
+plugin tool (zero OpenClaw LLM tokens) and EDAMAME's host-side transcript
+observer; no separate extrapolator skill is required.
 
 Prerequisites:
   - OpenClaw installed and ~/.openclaw/ directory exists (or will be created)
@@ -44,8 +48,12 @@ SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OPENCLAW_DIR="$HOME/.openclaw"
 
 mkdir -p "$OPENCLAW_DIR/extensions/edamame"
-mkdir -p "$OPENCLAW_DIR/skills/edamame-extrapolator"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-posture"
+
+# Clean up legacy edamame-extrapolator skill from older installs (skill was
+# removed; reasoning-plane publication is handled by the compiled
+# extrapolator_run_cycle tool plus EDAMAME's host-side transcript observer).
+rm -rf "$OPENCLAW_DIR/skills/edamame-extrapolator"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/state"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/service"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/setup"
@@ -68,15 +76,6 @@ else
 fi
 
 # Step 2: Install skills
-SKILL_EX_SRC="$SOURCE_ROOT/skill/edamame-extrapolator"
-SKILL_EX_DST="$OPENCLAW_DIR/skills/edamame-extrapolator"
-if [ -f "$SKILL_EX_SRC/SKILL.md" ]; then
-    cp "$SKILL_EX_SRC/SKILL.md" "$SKILL_EX_DST/SKILL.md"
-    echo "  edamame-extrapolator skill installed"
-else
-    echo "  WARNING: SKILL.md not found at $SKILL_EX_SRC" >&2
-fi
-
 SKILL_POSTURE_SRC="$SOURCE_ROOT/skill/edamame-posture"
 SKILL_POSTURE_DST="$OPENCLAW_DIR/skills/edamame-posture"
 if [ -f "$SKILL_POSTURE_SRC/SKILL.md" ]; then
@@ -128,8 +127,7 @@ cat <<EOF
 
 Installed EDAMAME for OpenClaw v${VERSION} to:
   Plugin:  $OPENCLAW_DIR/extensions/edamame/
-  Skills:  $OPENCLAW_DIR/skills/edamame-extrapolator/
-           $OPENCLAW_DIR/skills/edamame-posture/
+  Skills:  $OPENCLAW_DIR/skills/edamame-posture/
   Version: $OPENCLAW_DIR/edamame-openclaw/package.json
 
 Next steps:

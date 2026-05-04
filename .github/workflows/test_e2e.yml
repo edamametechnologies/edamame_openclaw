@@ -201,7 +201,6 @@ jobs:
           for f in \
             "$OPENCLAW_DIR/extensions/edamame/openclaw.plugin.json" \
             "$OPENCLAW_DIR/extensions/edamame/index.ts" \
-            "$OPENCLAW_DIR/skills/edamame-extrapolator/SKILL.md" \
             "$OPENCLAW_DIR/skills/edamame-posture/SKILL.md" \
             "$OPENCLAW_DIR/edamame-openclaw/package.json"; do
             if [ -f "$f" ]; then
@@ -223,7 +222,6 @@ jobs:
           $files = @(
             "$env:OPENCLAW_DIR\extensions\edamame\openclaw.plugin.json",
             "$env:OPENCLAW_DIR\extensions\edamame\index.ts",
-            "$env:OPENCLAW_DIR\skills\edamame-extrapolator\SKILL.md",
             "$env:OPENCLAW_DIR\skills\edamame-posture\SKILL.md",
             "$env:OPENCLAW_DIR\edamame-openclaw\package.json"
           )
@@ -872,7 +870,6 @@ jobs:
         run: |
           echo "--- Uninstalling ---"
           rm -rf "$OPENCLAW_DIR/extensions/edamame"
-          rm -rf "$OPENCLAW_DIR/skills/edamame-extrapolator"
           rm -rf "$OPENCLAW_DIR/skills/edamame-posture"
           rm -rf "$OPENCLAW_DIR/edamame-openclaw"
           echo "--- Uninstall completed ---"
@@ -884,7 +881,6 @@ jobs:
           Write-Host "--- Uninstalling ---"
           $dirs = @(
             "$env:OPENCLAW_DIR\extensions\edamame",
-            "$env:OPENCLAW_DIR\skills\edamame-extrapolator",
             "$env:OPENCLAW_DIR\skills\edamame-posture",
             "$env:OPENCLAW_DIR\edamame-openclaw"
           )
@@ -903,7 +899,6 @@ jobs:
           fail=0
           for d in \
             "$OPENCLAW_DIR/extensions/edamame" \
-            "$OPENCLAW_DIR/skills/edamame-extrapolator" \
             "$OPENCLAW_DIR/skills/edamame-posture" \
             "$OPENCLAW_DIR/edamame-openclaw"; do
             if [[ -d "$d" ]]; then
@@ -926,7 +921,6 @@ jobs:
           $fail = $false
           $dirs = @(
             "$env:OPENCLAW_DIR\extensions\edamame",
-            "$env:OPENCLAW_DIR\skills\edamame-extrapolator",
             "$env:OPENCLAW_DIR\skills\edamame-posture",
             "$env:OPENCLAW_DIR\edamame-openclaw"
           )

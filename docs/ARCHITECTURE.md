@@ -5,7 +5,7 @@
 ## Runtime Model
 
 1. OpenClaw sessions are produced by the OpenClaw gateway and local session store.
-2. The `edamame-extrapolator` skill or the compiled plugin-side extrapolation path turns those sessions into a behavioral payload.
+2. The compiled plugin-side `extrapolator_run_cycle` tool turns those sessions into a behavioral payload (zero OpenClaw LLM tokens). EDAMAME's host-side transcript observer follows the same path automatically when OpenClaw is host-resident.
 3. The plugin forwards data to the local EDAMAME MCP endpoint over HTTP using a PSK or app-mediated credential.
 4. EDAMAME stores the behavioral contributor, correlates it with live network and host telemetry, and returns read-only posture and divergence state through the plugin tools.
 
@@ -16,7 +16,6 @@
 | Path | Responsibility |
 |---|---|
 | `extensions/edamame/index.ts` | OpenClaw plugin entrypoint, tool registration, EDAMAME MCP client, payload helpers |
-| `skill/edamame-extrapolator/SKILL.md` | Transcript-to-behavioral-model publication contract |
 | `skill/edamame-posture/SKILL.md` | Thin posture/remediation facade contract |
 | `service/health.mjs` / `service/healthcheck_cli.mjs` | local health and operator checks |
 | `setup/install.sh` / `setup/install.ps1` | per-user installation and plugin enablement |
@@ -32,14 +31,13 @@ The OpenClaw plugin exposes a broader EDAMAME surface than the workstation bridg
 - behavioral-model ingest tools such as `upsert_behavioral_model_from_raw_sessions`
 - OpenClaw-specific helper logic for session filtering, payload trimming, transcript extraction, and stable `agent_instance_id` handling
 
-## Extrapolator Modes
+## Extrapolation
 
-| Mode | Behavior |
-|---|---|
-| `compiled` | plugin-side deterministic extraction, then EDAMAME internal LLM generation |
-| `llm` | OpenClaw agent runbook generates the behavioral window directly |
-
-Compiled mode is the default because it removes per-cycle OpenClaw LLM cost while preserving the EDAMAME-side model-generation path.
+Reasoning-plane publication uses the compiled `extrapolator_run_cycle` plugin
+tool: deterministic plugin-side extraction, then EDAMAME-internal LLM
+generation through `upsert_behavioral_model_from_raw_sessions`. This consumes
+zero OpenClaw agent LLM tokens per cycle. EDAMAME's host-side transcript
+observer covers the same path automatically when OpenClaw is host-resident.
 
 ## Identity and Pairing
 

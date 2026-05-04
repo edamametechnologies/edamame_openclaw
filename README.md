@@ -5,8 +5,10 @@ powered by [EDAMAME Security](https://edamame.tech).**
 
 ## How It Works
 
-1. The `edamame-extrapolator` skill reads agent session history and publishes
-   behavioral models to EDAMAME via MCP.
+1. The compiled `extrapolator_run_cycle` plugin tool reads agent session
+   history and publishes behavioral models to EDAMAME via MCP, with zero
+   OpenClaw agent LLM tokens. EDAMAME's host-side transcript observer covers
+   the same path automatically when OpenClaw is host-resident.
 2. EDAMAME's internal divergence engine correlates intent predictions against
    live system telemetry.
 3. Verdicts (`CLEAN`, `DIVERGENCE`, `NO_MODEL`, `STALE`) are available through
@@ -14,25 +16,17 @@ powered by [EDAMAME Security](https://edamame.tech).**
 4. The `edamame-posture` skill exposes posture, remediation, and telemetry
    endpoints as an on-demand MCP facade.
 
-## Extrapolator Modes
+## Extrapolation
 
-The extrapolator supports two execution modes, selectable via the
-`EXTRAPOLATOR_MODE` environment variable at provisioning time:
-
-| Mode | LLM Tokens | Cron Cadence | How It Works |
-|------|------------|--------------|--------------|
-| `compiled` (default) | Zero OpenClaw LLM | Every 1 min | The `extrapolator_run_cycle` plugin tool deterministically extracts behavioral signals from session transcripts and forwards them to EDAMAME's internal LLM via `upsert_behavioral_model_from_raw_sessions`. |
-| `llm` | Full agent runbook | Every 5 min | The OpenClaw agent LLM reads transcripts, reasons about expected system behavior, and builds the behavioral model payload directly via `upsert_behavioral_model`. |
-
-Compiled mode is preferred for production: it eliminates per-cycle OpenClaw LLM
-costs while producing equivalent behavioral models. The LLM-driven mode remains
-available as a fallback when EDAMAME for OpenClaw is unavailable or for
-environments that benefit from richer agent reasoning.
+Reasoning-plane publication runs in compiled mode only. The
+`extrapolator_run_cycle` plugin tool deterministically extracts behavioral
+signals from session transcripts and forwards them to EDAMAME's internal LLM
+via `upsert_behavioral_model_from_raw_sessions`. This consumes zero OpenClaw
+agent LLM tokens. EDAMAME's host-side transcript observer covers the same
+path automatically when OpenClaw transcripts are accessible on the host.
 
 Lima VM provisioning has moved to
 [openclaw_security](https://github.com/edamametechnologies/openclaw_security).
-Set `EXTRAPOLATOR_MODE=compiled` (default) or `EXTRAPOLATOR_MODE=llm` in that
-repo's `setup/provision.sh`.
 
 ## Components
 
@@ -66,7 +60,6 @@ gateway can appear as parent or grandparent depending on tool-chain depth.
 
 | Skill | Purpose |
 |-------|---------|
-| `edamame-extrapolator` | Reads session transcripts, publishes behavioral models. Tries `extrapolator_run_cycle` (compiled) first, falls back to LLM runbook. |
 | `edamame-posture` | Thin MCP facade over EDAMAME posture/remediation workflows |
 
 See [skill/README.md](skill/README.md) for architecture and distribution details.
@@ -225,7 +218,6 @@ Set these before running `provision.sh` (or place them in `../secrets/*.env`):
 
 | Variable | Purpose |
 |----------|---------|
-| `EXTRAPOLATOR_MODE` | `compiled` (default, zero LLM tokens) or `llm` (agent runbook) |
 | `EDAMAME_LLM_API_KEY` | EDAMAME Portal LLM key (divergence engine) |
 | `EDAMAME_LLM_PROVIDER` | `edamame` (default), `openai`, `claude`, `ollama` |
 | `EDAMAME_TELEGRAM_BOT_TOKEN` | Telegram Bot API token for notifications |

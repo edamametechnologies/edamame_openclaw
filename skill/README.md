@@ -4,8 +4,8 @@ Runtime security skills for OpenClaw agents, powered by EDAMAME Posture telemetr
 
 ## Distribution
 
-Skills are distributed as a plugin bundle. The `edamame` plugin bundles
-both skills alongside the MCP bridge:
+Skills are distributed as a plugin bundle. The `edamame` plugin bundles the
+on-demand posture skill alongside the MCP bridge:
 
 ```bash
 cp -r extensions/edamame ~/.openclaw/extensions/
@@ -16,42 +16,47 @@ openclaw plugins enable edamame
 
 Current model:
 
-- OpenClaw cron: `edamame-extrapolator` (session history -> behavioral model)
-- EDAMAME internal ticker: divergence correlation and verdict lifecycle
-- OpenClaw `edamame-posture` skill: thin MCP facade (on-demand tool exposure)
+- Compiled plugin-side `extrapolator_run_cycle` tool (zero OpenClaw LLM
+  tokens) turns OpenClaw session history into behavioral models. EDAMAME's
+  host-side transcript observer covers the same path automatically when
+  OpenClaw is host-resident.
+- EDAMAME internal ticker: divergence correlation and verdict lifecycle.
+- OpenClaw `edamame-posture` skill: thin MCP facade (on-demand tool exposure).
 
 ```
 Agent sessions                EDAMAME Posture daemon
      |                               |
      v                               v
 +-------------------------+   +---------------------------+
-| extrapolator            |   | Internal divergence       |
-| (cron: every 2-5 min)   |   | engine (ticker)           |
-| sessions_list/history   |   | correlate + safety floor  |
-| -> upsert_behavioral_   |   | + vulnerability detector  |
-| model                   |   | -> verdict state          |
+| extrapolator_run_cycle  |   | Internal divergence       |
+| (compiled plugin tool)  |   | engine (ticker)           |
+| sessions -> behavioral  |   | correlate + safety floor  |
+| model via               |   | + vulnerability detector  |
+| upsert_behavioral_model |   | -> verdict state          |
+| _from_raw_sessions      |   |                           |
 +------------+------------+   +-------------+-------------+
              |                              |
              v                              v
-     upsert_behavioral_model         get_divergence_verdict
-         (MCP write)                    (MCP read)
+     upsert_behavioral_model_        get_divergence_verdict
+     from_raw_sessions                  (MCP read)
+         (MCP write)
 
 +-----------------------------------------------------------+
 | edamame-posture (on-demand skill)                         |
 | Thin facade over EDAMAME MCP tools for score/todos,       |
-| telemetry, divergence status, and remediation endpoints.   |
-| No OpenClaw-side remediation loop; no security state in    |
-| MEMORY.md.                                                 |
+| telemetry, divergence status, and remediation endpoints.  |
+| No OpenClaw-side remediation loop; no security state in   |
+| MEMORY.md.                                                |
 +-----------------------------------------------------------+
 ```
 
 ## Skills vs `openclaw doctor`
 
-`openclaw doctor` and EDAMAME skills solve different layers of the system:
+`openclaw doctor` and EDAMAME tools solve different layers of the system:
 
-- `openclaw doctor`: validates OpenClaw runtime health (gateway, config, channels, local readiness)
-- `edamame-extrapolator`: writes behavioral expectations into EDAMAME
-- `edamame-posture`: reads and executes posture/telemetry/divergence/remediation actions through MCP
+- `openclaw doctor`: validates OpenClaw runtime health (gateway, config, channels, local readiness).
+- `extrapolator_run_cycle` (compiled plugin tool): publishes behavioral expectations into EDAMAME from session transcripts.
+- `edamame-posture` skill: reads and executes posture/telemetry/divergence/remediation actions through MCP.
 
 Use them together, not as substitutes.
 
@@ -59,11 +64,11 @@ Reference: [`openclaw doctor` docs](https://docs.openclaw.ai/cli/doctor).
 
 ### When to use each
 
-| Situation | Use `openclaw doctor` | Use EDAMAME skills |
+| Situation | Use `openclaw doctor` | Use EDAMAME |
 |---|---|---|
 | Gateway auth/config failures | Yes, first step | After doctor passes |
-| MCP tool calls timing out or unauthorized | Yes, first step | Then rerun skill operations |
-| Need behavioral model updates from sessions | Optional | Use `edamame-extrapolator` |
+| MCP tool calls timing out or unauthorized | Yes, first step | Then rerun operations |
+| Need behavioral model updates from sessions | Optional | Use `extrapolator_run_cycle` plugin tool |
 | Need score/todos/remediation/divergence status | Optional | Use `edamame-posture` |
 | Need to auto-repair OpenClaw local setup | Yes (`--repair` / `--fix`) | Not applicable |
 | Need security posture decisions | No | Yes (`edamame-posture`) |
@@ -71,26 +76,11 @@ Reference: [`openclaw doctor` docs](https://docs.openclaw.ai/cli/doctor).
 ### Complementary flow
 
 1. Run `openclaw doctor` (or `openclaw doctor --repair`) to establish healthy OpenClaw runtime.
-2. Run `edamame-extrapolator` on schedule to maintain behavioral expectations in EDAMAME.
+2. Compiled `extrapolator_run_cycle` runs on schedule (or via EDAMAME's host-side observer) to maintain behavioral expectations in EDAMAME.
 3. Use `edamame-posture` on-demand for score, todos, telemetry, divergence reads, and explicit actions.
 4. If tool transport/auth breaks again, return to step 1.
 
 ## Skills
-
-### edamame-extrapolator
-
-Purpose:
-
-- Read OpenClaw session history (`sessions_list`, `sessions_history`)
-- Distill behavioral predictions
-- Emit V3 prediction fields (`expected_traffic`, `expected_sensitive_files`,
-  extended `expected_*` dimensions, and per-dimension `not_expected_*` rules)
-- Push model to EDAMAME with `upsert_behavioral_model`
-
-Checkpoint behavior:
-
-- Writes only operational cursor/checkpoint state under
-  `## [extrapolator] State`
 
 ### edamame-posture
 
@@ -126,6 +116,6 @@ Loop lifecycle control is intentionally not exposed via MCP. Use
 ./setup/pair.sh         # App-mediated pairing (developer workstations)
 ```
 
-Provisioning installs both skills. By default, only extrapolation is
-scheduled in OpenClaw. Divergence and agentic posture loops execute inside
-EDAMAME.
+Provisioning installs the `edamame-posture` skill and the MCP plugin (which
+ships the compiled `extrapolator_run_cycle` tool). Divergence and agentic
+posture loops execute inside EDAMAME.

@@ -31,7 +31,6 @@ check_file() {
 
 check_file "$FAKE_HOME/.openclaw/extensions/edamame/openclaw.plugin.json"
 check_file "$FAKE_HOME/.openclaw/extensions/edamame/index.ts"
-check_file "$FAKE_HOME/.openclaw/skills/edamame-extrapolator/SKILL.md"
 check_file "$FAKE_HOME/.openclaw/skills/edamame-posture/SKILL.md"
 check_file "$FAKE_HOME/.openclaw/edamame-openclaw/package.json"
 

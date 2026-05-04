@@ -20,7 +20,6 @@ $OpenClawDir = Join-Path $env:USERPROFILE ".openclaw"
 
 $Dirs = @(
     (Join-Path $OpenClawDir "extensions\edamame"),
-    (Join-Path $OpenClawDir "skills\edamame-extrapolator"),
     (Join-Path $OpenClawDir "skills\edamame-posture"),
     (Join-Path $OpenClawDir "edamame-openclaw\state"),
     (Join-Path $OpenClawDir "edamame-openclaw\service"),
@@ -30,6 +29,12 @@ $Dirs = @(
 foreach ($d in $Dirs) {
     if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
 }
+
+# Clean up legacy edamame-extrapolator skill from older installs (skill was
+# removed; reasoning-plane publication is handled by the compiled
+# extrapolator_run_cycle tool plus EDAMAME's host-side transcript observer).
+$LegacySkillDir = Join-Path $OpenClawDir "skills\edamame-extrapolator"
+if (Test-Path $LegacySkillDir) { Remove-Item -Recurse -Force $LegacySkillDir }
 
 # Step 1: Install MCP plugin
 $PluginSrc = Join-Path $SourceRoot "extensions\edamame"
@@ -45,15 +50,6 @@ foreach ($f in @("openclaw.plugin.json", "index.ts", "session_payload.ts")) {
 }
 
 # Step 2: Install skills
-$SkillExSrc = Join-Path $SourceRoot "skill\edamame-extrapolator\SKILL.md"
-$SkillExDst = Join-Path $OpenClawDir "skills\edamame-extrapolator\SKILL.md"
-if (Test-Path $SkillExSrc) {
-    Copy-Item -Force $SkillExSrc $SkillExDst
-    Write-Host "  edamame-extrapolator skill installed"
-} else {
-    Write-Warning "  SKILL.md not found: $SkillExSrc"
-}
-
 $SkillPosSrc = Join-Path $SourceRoot "skill\edamame-posture\SKILL.md"
 $SkillPosDst = Join-Path $OpenClawDir "skills\edamame-posture\SKILL.md"
 if (Test-Path $SkillPosSrc) {
@@ -114,8 +110,7 @@ Write-Host @"
 
 Installed EDAMAME for OpenClaw v$Version to:
   Plugin:  $OpenClawDir\extensions\edamame\
-  Skills:  $OpenClawDir\skills\edamame-extrapolator\
-           $OpenClawDir\skills\edamame-posture\
+  Skills:  $OpenClawDir\skills\edamame-posture\
   Version: $OpenClawDir\edamame-openclaw\package.json
 
 Next steps:

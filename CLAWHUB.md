@@ -17,7 +17,7 @@ Each skill needs a `clawhub.json` manifest with:
 
 ```json
 {
-  "name": "edamame-extrapolator",
+  "name": "edamame-posture",
   "version": "1.0.0",
   "description": "...",
   "category": "security",
@@ -26,7 +26,7 @@ Each skill needs a `clawhub.json` manifest with:
   "minOpenClawVersion": "0.8.0",
   "tags": ["security", "runtime", "edamame"],
   "requires": {
-    "tools": ["upsert_behavioral_model", "sessions_list", "..."],
+    "tools": ["get_score", "get_divergence_verdict", "..."],
     "bins": [],
     "external": ["edamame_posture"],
     "plugins": ["edamame"]
@@ -48,7 +48,7 @@ Each skill needs a `clawhub.json` manifest with:
 
 - `clawhub` CLI: `npm i -g clawhub`
 - Authentication: `clawhub login`
-- Publish command: `clawhub publish skill/edamame-extrapolator --slug edamame-extrapolator --version 1.0.0`
+- Publish command: `clawhub publish skill/edamame-posture --slug edamame-posture --version 1.0.0`
 
 ### CI Integration
 
@@ -62,15 +62,15 @@ A publish step would need to:
 
 ### Plugin Dependency
 
-Both skills depend on the `edamame` plugin for MCP tool access. ClawHub
-installs skills individually, but a standalone skill without the plugin is
-non-functional. The `requires.plugins: ["edamame"]` field declares this,
-but the user still needs to install the plugin separately. The plugin bundle
-approach avoids this split.
+The `edamame-posture` skill depends on the `edamame` plugin for MCP tool
+access. ClawHub installs skills individually, but a standalone skill without
+the plugin is non-functional. The `requires.plugins: ["edamame"]` field
+declares this, but the user still needs to install the plugin separately. The
+plugin bundle approach avoids this split.
 
 ### External Binary Dependency
 
-Both skills require either `edamame_posture` or the EDAMAME Security app
+The skill requires either `edamame_posture` or the EDAMAME Security app
 running locally with MCP enabled. ClawHub's `install` hooks can install
 `edamame_posture` via Homebrew or a shell script, but they cannot:
 
@@ -81,21 +81,21 @@ running locally with MCP enabled. ClawHub's `install` hooks can install
 The user still needs to run `provision.sh` or manual setup steps after
 `clawhub install`.
 
-### Compiled Mode Requires Plugin
+### Extrapolation Lives in the Plugin
 
-The preferred `compiled` extrapolator mode uses the `extrapolator_run_cycle`
-tool, which is implemented in the `edamame` plugin. A ClawHub-only install
-(skill without plugin) falls back to `llm` mode, consuming OpenClaw LLM tokens
-on every cycle. This is a significant cost/performance difference that is not
-obvious from the ClawHub listing.
+Reasoning-plane publication is the compiled `extrapolator_run_cycle` tool
+implemented in the `edamame` plugin. A ClawHub-only install of the posture
+skill (without the plugin) does not get this tool, so behavioral models would
+have to come from EDAMAME's host-side transcript observer alone. A bundle
+install keeps the two paths together.
 
 ### Version Coordination
 
 Skill versions, plugin versions, and `edamame_posture` versions must stay
 compatible. ClawHub publishes each skill independently with its own version.
-A user might install `edamame-extrapolator@2.0.0` with an older
-`edamame@1.0.0` plugin that lacks `extrapolator_run_cycle`. The plugin
-bundle approach keeps everything in lockstep.
+A user might install `edamame-posture@2.0.0` with an older `edamame@1.0.0`
+plugin that lacks newer MCP tools. The plugin bundle approach keeps
+everything in lockstep.
 
 ### Security Audit Surface
 
