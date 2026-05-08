@@ -68,19 +68,41 @@ security-critical state must remain in the observer process, not in shared works
 - `add_pwned_email`
 - `remove_pwned_email`
 
-### Divergence engine observability
+### Divergence engine observability (read-only)
 
 - `get_divergence_verdict`
 - `get_divergence_history`
 - `get_divergence_engine_status`
-- `dismiss_divergence_evidence` -- dismiss a finding by stable key (reversible)
-- `undismiss_divergence_evidence` -- restore a previously dismissed finding
 
-### Vulnerability detector (safety floor)
+### Vulnerability detector (safety floor, read-only)
 
 - `get_vulnerability_findings` -- latest CVE-aligned vulnerability report
 - `get_vulnerability_detector_status` -- detector enabled, interval, last run, finding count
 - `get_vulnerability_history` -- rolling history of vulnerability reports with provenance
+
+### Recurrence-aware dismissal rules (read-only)
+
+- `list_agentic_dismissal_rules` -- active rules with telemetry (`hit_count`, `last_hit_at`)
+- `list_agentic_dismissal_audit_log` -- create / remove / expire / promote events for rules
+
+### Observer-independence: dismissals are operator-only
+
+The two-plane architecture requires that the reasoning plane (this LLM
+agent) cannot silence findings about its own behavior. Therefore the
+following operations are **NOT** available via MCP and require a human
+operator using the EDAMAME app or `edamame_cli rpc`:
+
+- `dismiss_vulnerability_finding`, `undismiss_vulnerability_finding`
+- `dismiss_divergence_evidence`, `undismiss_divergence_evidence`
+- `dismiss_*_with_scope` (recurrence-aware scoped dismissal)
+- `remove_agentic_dismissal_rule`, `set_agentic_dismissal_rule_severity_ceiling`
+- `reset_agentic_dismissal_rules`, `clear_agentic_dismissal_audit_log`
+- `clear_divergence_state`, `clear_vulnerability_history`,
+  `reset_vulnerability_suppressions`
+
+When you see a recurring finding the user has decided to accept, surface
+it in the response and ask the operator to dismiss it through the app
+or CLI -- do not try to suppress it programmatically.
 
 ## Safety Floor
 
