@@ -74,7 +74,7 @@ security-critical state must remain in the observer process, not in shared works
 - `get_divergence_history`
 - `get_divergence_engine_status`
 
-### Vulnerability detector (safety floor, read-only)
+### Attack pattern detector (safety floor, read-only)
 
 - `get_vulnerability_findings` -- latest CVE-aligned vulnerability report
 - `get_vulnerability_detector_status` -- detector enabled, interval, last run, finding count
@@ -106,7 +106,7 @@ or CLI -- do not try to suppress it programmatically.
 
 ## Safety Floor
 
-The vulnerability detector runs five model-independent checks that operate
+The attack pattern detector runs five model-independent checks that operate
 even when no behavioral model has been pushed. These checks form a safety
 floor that detects concrete dangerous conditions regardless of whether the
 divergence engine is active:

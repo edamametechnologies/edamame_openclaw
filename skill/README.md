@@ -31,7 +31,7 @@ Agent sessions                EDAMAME Posture daemon
 | extrapolator_run_cycle  |   | Internal divergence       |
 | (compiled plugin tool)  |   | engine (ticker)           |
 | sessions -> behavioral  |   | correlate + safety floor  |
-| model via               |   | + vulnerability detector  |
+| model via               |   | + attack pattern detector  |
 | upsert_behavioral_model |   | -> verdict state          |
 | _from_raw_sessions      |   |                           |
 +------------+------------+   +-------------+-------------+
