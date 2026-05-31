@@ -276,6 +276,8 @@ Run triggers with `--agent-type openclaw`.
 |------------|---------|
 | [edamame_cursor](https://github.com/edamametechnologies/edamame_cursor) | EDAMAME integration for Cursor IDE |
 | [edamame_claude_code](https://github.com/edamametechnologies/edamame_claude_code) | EDAMAME integration for Claude Code |
+| [edamame_claude_desktop](https://github.com/edamametechnologies/edamame_claude_desktop) | EDAMAME integration for Claude Desktop |
+| [edamame_codex](https://github.com/edamametechnologies/edamame_codex) | EDAMAME integration for Codex CLI |
 | [agent_security](https://github.com/edamametechnologies/agent_security) | Research paper: two-plane runtime security (arXiv preprint) |
 
 ### Sibling Agent Integrations
