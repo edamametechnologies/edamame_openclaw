@@ -11,6 +11,31 @@
 
 > **External transcript observer (additive, host-resident only).** Starting with `edamame_core` 1.2.3, EDAMAME runs its own host-side observer that probes `~/.openclaw/sessions/` and a few sibling locations for OpenClaw transcripts. OpenClaw normally runs in Lima or remote, so on most workstations the observer reports `transcripts_root_accessible=false` (i.e. OpenClaw is not **discovered** on the host) and produces no slices -- this is expected and not an error. This plugin's existing MCP path keeps working unchanged in that case; the observer is the security primitive whenever OpenClaw is host-resident. Operators can pause / resume / run-now per agent from the EDAMAME app's AI / Config tab. When the observer is paused while OpenClaw **is** discovered on disk, EDAMAME's `unsecured_openclaw` internal threat trips on the next score cycle (the threat keys on discovery, not plugin install).
 
+## Observer vs plugin: the value boundary
+
+OpenClaw inverts the workstation packages' default. The security control
+of record is still the **EDAMAME host-side observer whenever OpenClaw is
+host-resident** -- it is observer-independent (a compromised OpenClaw
+cannot pause or silence it) and needs no plugin. But OpenClaw normally runs
+**off-host** (Lima VM, remote box, container, CI), so on most deployments
+the observer reports `transcripts_root_accessible=false` and this plugin's
+MCP path is the **primary -- often the only -- way the behavioral model
+reaches EDAMAME**.
+
+| | EDAMAME host-side observer | This package (reasoning plane) |
+|---|---|---|
+| Role | **Security control of record when OpenClaw is host-resident** | **Primary coverage path off-host; cooperative enhancement on-host** |
+| Trust model | Observer-independent: system plane, cannot be silenced by a compromised agent | Cooperative: OpenClaw voluntarily declares intent; it can only *add* signal, never *weaken* a verdict |
+| Needs | OpenClaw transcripts readable on the host (rare for OpenClaw) | The OpenClaw gateway running this plugin and reaching the EDAMAME MCP endpoint |
+| Provides the guarantee? | **Yes, when OpenClaw is discovered on disk** | Delivers the *model*; EDAMAME on the host still owns the *verdict* |
+
+Even when the plugin is the only ingest path (the off-host common case),
+the EDAMAME host remains the verdict authority: divergence adjudication,
+dismissals, and clearing state all stay operator-only on the EDAMAME side
+(the MCP observer-independence policy). The plugin ingests behavioral
+models and onboards the deployment -- pairing, PSK, scope filters, the
+read-only posture/telemetry tool surface -- but it never adjudicates.
+
 ## Core Components
 
 | Path | Responsibility |

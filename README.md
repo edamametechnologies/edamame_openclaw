@@ -16,6 +16,20 @@ powered by [EDAMAME Security](https://edamame.tech).**
 4. The `edamame-posture` skill exposes posture, remediation, and telemetry
    endpoints as an on-demand MCP facade.
 
+## Observer vs plugin: what provides the security
+
+EDAMAME's **host-side transcript observer is the security control of
+record whenever OpenClaw is host-resident** -- observer-independent and
+needing no plugin. But OpenClaw normally runs **off-host** (Lima VM,
+remote, container, CI), where the host observer cannot read its
+transcripts, so this plugin's MCP path is usually the **primary -- often
+the only -- way the behavioral model reaches EDAMAME**. Either way the
+EDAMAME host stays the verdict authority: the plugin ingests models and
+streamlines onboarding (pairing, PSK, scope filters, read-only posture/
+telemetry tools) but never adjudicates -- divergence verdicts, dismissals,
+and clearing state stay operator-only on the EDAMAME side. See
+[Observer vs plugin: the value boundary](docs/ARCHITECTURE.md#observer-vs-plugin-the-value-boundary).
+
 ## Extrapolation
 
 Reasoning-plane publication runs in compiled mode only. The
