@@ -1,5 +1,7 @@
 # EDAMAME for OpenClaw
 
+> **ARCHIVED (EDAMAME 1.7.0):** Level-2 agent plugin distribution is retired. Host-side transcript observation is the default monitoring path; prevention is via **nono** / **srt** governance harnesses. The remaining release gate is [agent_security fleet monitoring](https://github.com/edamametechnologies/agent_security/blob/main/.github/workflows/agent_monitoring_e2e.yml).
+
 **Runtime behavioral monitoring for [OpenClaw](https://openclaw.ai) agents,
 powered by [EDAMAME Security](https://edamame.tech).**
 
