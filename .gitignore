@@ -3,3 +3,8 @@
 .cursor/
 __pycache__/
 node_modules/
+
+# AI rules: dev-only symlinks into ../edamame_rules, recreated by edamame_rules/setup.sh
+.claude/
+CLAUDE.md
+AGENTS.md
