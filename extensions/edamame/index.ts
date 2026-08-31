@@ -847,49 +847,12 @@ export default function register(api: any) {
     })
 
     api.registerTool({
-        name: "remove_pwned_email",
-        description:
-            "EDAMAME MCP: remove an email from HIBP breach monitoring. (SIDE EFFECTS).",
-        parameters: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-                email: { type: "string", minLength: 1 },
-            },
-            required: ["email"],
-        },
-        async execute(_id: string, params: { email: string }) {
-            const { text, isError } = await _callEdamameToolSafe("remove_pwned_email", { email: params.email })
-            return isError ? _asError(text) : _asText(text)
-        },
-    })
-
-    api.registerTool({
         name: "get_pwned_emails",
         description:
             "EDAMAME MCP: list all emails currently monitored for HIBP breaches with per-email summary and breach counts. Read-only.",
         parameters: { type: "object", additionalProperties: false, properties: {} },
         async execute(_id: string, _params: Record<string, never>) {
             const { text, isError } = await _callEdamameToolSafe("get_pwned_emails", {})
-            return isError ? _asError(text) : _asText(text)
-        },
-    })
-
-    // LAN scan configuration — enable/disable continuous network discovery.
-    api.registerTool({
-        name: "set_lan_auto_scan",
-        description:
-            "EDAMAME MCP: enable or disable continuous LAN auto-scanning for devices, open ports, and CVEs. (SIDE EFFECTS).",
-        parameters: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-                enabled: { type: "boolean" },
-            },
-            required: ["enabled"],
-        },
-        async execute(_id: string, params: { enabled: boolean }) {
-            const { text, isError } = await _callEdamameToolSafe("set_lan_auto_scan", { enabled: params.enabled })
             return isError ? _asError(text) : _asText(text)
         },
     })
@@ -1033,33 +996,6 @@ export default function register(api: any) {
         },
         async execute(_id: string, params: { action_id: string }) {
             const { text, isError } = await _callEdamameToolSafe("agentic_execute_action", { action_id: params.action_id })
-            return isError ? _asError(text) : _asText(text)
-        },
-    })
-
-    api.registerTool({
-        name: "advisor_undo_action",
-        description: "EDAMAME MCP: undo a specific action (SIDE EFFECTS).",
-        parameters: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-                action_id: { type: "string", minLength: 1 },
-            },
-            required: ["action_id"],
-        },
-        async execute(_id: string, params: { action_id: string }) {
-            const { text, isError } = await _callEdamameToolSafe("advisor_undo_action", { action_id: params.action_id })
-            return isError ? _asError(text) : _asText(text)
-        },
-    })
-
-    api.registerTool({
-        name: "advisor_undo_all_actions",
-        description: "EDAMAME MCP: undo all actions from current session (SIDE EFFECTS).",
-        parameters: { type: "object", additionalProperties: false, properties: {} },
-        async execute(_id: string, _params: Record<string, never>) {
-            const { text, isError } = await _callEdamameToolSafe("advisor_undo_all_actions", {})
             return isError ? _asError(text) : _asText(text)
         },
     })

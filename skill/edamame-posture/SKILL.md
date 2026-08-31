@@ -48,8 +48,6 @@ security-critical state must remain in the observer process, not in shared works
 - `agentic_get_workflow_status`
 - `agentic_process_todos`
 - `agentic_execute_action`
-- `advisor_undo_action`
-- `advisor_undo_all_actions`
 
 ### Network and session telemetry
 
@@ -62,11 +60,9 @@ security-critical state must remain in the observer process, not in shared works
 
 - `get_lan_devices`
 - `get_lan_host_device`
-- `set_lan_auto_scan`
 - `get_breaches`
 - `get_pwned_emails`
 - `add_pwned_email`
-- `remove_pwned_email`
 
 ### Divergence engine observability (read-only)
 
@@ -85,7 +81,7 @@ security-critical state must remain in the observer process, not in shared works
 - `list_agentic_dismissal_rules` -- active rules with telemetry (`hit_count`, `last_hit_at`)
 - `list_agentic_dismissal_audit_log` -- create / remove / expire / promote events for rules
 
-### Observer-independence: dismissals are operator-only
+### Observer-independence: control actions are operator-only
 
 The two-plane architecture requires that the reasoning plane (this LLM
 agent) cannot silence findings about its own behavior. Therefore the
@@ -99,6 +95,10 @@ operator using the EDAMAME app or `edamame_cli rpc`:
 - `reset_agentic_dismissal_rules`, `clear_agentic_dismissal_audit_log`
 - `clear_divergence_state`, `clear_vulnerability_history`,
   `reset_vulnerability_suppressions`
+- advisor rollback via RPC `agentic_undo_action` or
+  `agentic_undo_all_actions`
+- removal from breach monitoring via RPC `remove_pwned_email`
+- LAN auto-scan changes via RPC `set_auto_scan`
 
 When you see a recurring finding the user has decided to accept, surface
 it in the response and ask the operator to dismiss it through the app
@@ -131,7 +131,8 @@ The detector is enabled independently of the divergence engine via
 - For status requests: call only read tools needed for the question.
 - For remediation requests: use `agentic_process_todos` and `agentic_execute_action`,
   then report workflow/action results.
-- For recovery requests: use `advisor_undo_action` or `advisor_undo_all_actions`.
+- For recovery requests: report that a human operator must use the EDAMAME app
+  or the operator RPC surface.
 - For alerting requests: call `send_alert` only when explicitly requested, or when
   instructed by policy in the current run context.
 

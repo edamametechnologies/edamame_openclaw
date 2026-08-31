@@ -19,9 +19,7 @@ const EXPECTED_TOOL_NAMES = [
     "get_lan_host_device",
     "get_breaches",
     "add_pwned_email",
-    "remove_pwned_email",
     "get_pwned_emails",
-    "set_lan_auto_scan",
     "get_score",
     "upsert_behavioral_model",
     "get_behavioral_model",
@@ -29,13 +27,18 @@ const EXPECTED_TOOL_NAMES = [
     "agentic_process_todos",
     "agentic_get_workflow_status",
     "agentic_execute_action",
-    "advisor_undo_action",
-    "advisor_undo_all_actions",
     "upsert_behavioral_model_from_raw_sessions",
     "extrapolator_run_cycle",
     "get_divergence_verdict",
     "get_divergence_history",
     "send_alert",
+]
+
+const OPERATOR_ONLY_TOOL_NAMES = [
+    "remove_pwned_email",
+    "set_lan_auto_scan",
+    "advisor_undo_action",
+    "advisor_undo_all_actions",
 ]
 
 // ── Tool registration ────────────────────────────────────────────────
@@ -52,6 +55,9 @@ test("register() registers all expected tool names", () => {
 
     for (const name of EXPECTED_TOOL_NAMES) {
         assert.ok(registered.has(name), `Tool '${name}' should be registered`)
+    }
+    for (const name of OPERATOR_ONLY_TOOL_NAMES) {
+        assert.ok(!registered.has(name), `Operator-only action '${name}' must not be registered`)
     }
     assert.equal(registered.size, EXPECTED_TOOL_NAMES.length, `should register exactly ${EXPECTED_TOOL_NAMES.length} tools`)
 })
