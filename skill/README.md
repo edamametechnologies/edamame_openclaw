@@ -16,30 +16,29 @@ openclaw plugins enable edamame
 
 Current model:
 
-- Compiled plugin-side `extrapolator_run_cycle` tool (zero OpenClaw LLM
-  tokens) turns OpenClaw session history into behavioral models. EDAMAME's
-  host-side transcript observer covers the same path automatically when
-  OpenClaw is host-resident.
+- EDAMAME's host-side transcript observer (inside `edamame_posture` or the
+  EDAMAME app, running where OpenClaw runs) reads OpenClaw session history
+  and builds the behavioral model. It is the only model producer; the plugin
+  pushes nothing.
 - EDAMAME internal ticker: divergence correlation and verdict lifecycle.
 - OpenClaw `edamame-posture` skill: thin MCP facade (on-demand tool exposure).
 
 ```
-Agent sessions                EDAMAME Posture daemon
-     |                               |
-     v                               v
-+-------------------------+   +---------------------------+
-| extrapolator_run_cycle  |   | Internal divergence       |
-| (compiled plugin tool)  |   | engine (ticker)           |
-| sessions -> behavioral  |   | correlate + safety floor  |
-| model via               |   | + attack pattern detector  |
-| upsert_behavioral_model |   | -> verdict state          |
-| _from_raw_sessions      |   |                           |
-+------------+------------+   +-------------+-------------+
-             |                              |
-             v                              v
-     upsert_behavioral_model_        get_divergence_verdict
-     from_raw_sessions                  (MCP read)
-         (MCP write)
+Agent sessions (~/.openclaw/sessions)     EDAMAME Posture daemon
+     |                                          |
+     v                                          v
++---------------------------+   +---------------------------+
+| Host-side transcript      |   | Internal divergence       |
+| observer (system plane)   |-->| engine (ticker)           |
+| transcripts -> behavioral |   | correlate + safety floor  |
+| model                     |   | + attack pattern detector |
++---------------------------+   | -> verdict state          |
+                                +-------------+-------------+
+                                              |
+                                              v
+                                  get_divergence_verdict
+                                  get_behavioral_model
+                                      (MCP read)
 
 +-----------------------------------------------------------+
 | edamame-posture (on-demand skill)                         |
@@ -55,7 +54,7 @@ Agent sessions                EDAMAME Posture daemon
 `openclaw doctor` and EDAMAME tools solve different layers of the system:
 
 - `openclaw doctor`: validates OpenClaw runtime health (gateway, config, channels, local readiness).
-- `extrapolator_run_cycle` (compiled plugin tool): publishes behavioral expectations into EDAMAME from session transcripts.
+- EDAMAME host-side transcript observer: builds behavioral expectations from session transcripts (no OpenClaw-side action needed).
 - `edamame-posture` skill: reads and executes posture/telemetry/divergence/remediation actions through MCP.
 
 Use them together, not as substitutes.
@@ -68,7 +67,7 @@ Reference: [`openclaw doctor` docs](https://docs.openclaw.ai/cli/doctor).
 |---|---|---|
 | Gateway auth/config failures | Yes, first step | After doctor passes |
 | MCP tool calls timing out or unauthorized | Yes, first step | Then rerun operations |
-| Need behavioral model updates from sessions | Optional | Use `extrapolator_run_cycle` plugin tool |
+| Need behavioral model updates from sessions | Optional | Automatic via EDAMAME's host-side observer |
 | Need score/todos/remediation/divergence status | Optional | Use `edamame-posture` |
 | Need to auto-repair OpenClaw local setup | Yes (`--repair` / `--fix`) | Not applicable |
 | Need security posture decisions | No | Yes (`edamame-posture`) |
@@ -76,7 +75,7 @@ Reference: [`openclaw doctor` docs](https://docs.openclaw.ai/cli/doctor).
 ### Complementary flow
 
 1. Run `openclaw doctor` (or `openclaw doctor --repair`) to establish healthy OpenClaw runtime.
-2. Compiled `extrapolator_run_cycle` runs on schedule (or via EDAMAME's host-side observer) to maintain behavioral expectations in EDAMAME.
+2. EDAMAME's host-side observer maintains behavioral expectations from the transcripts on its own schedule.
 3. Use `edamame-posture` on-demand for score, todos, telemetry, divergence reads, and explicit actions.
 4. If tool transport/auth breaks again, return to step 1.
 
@@ -116,6 +115,6 @@ Loop lifecycle control is intentionally not exposed via MCP. Use
 ./setup/pair.sh         # App-mediated pairing (developer workstations)
 ```
 
-Provisioning installs the `edamame-posture` skill and the MCP plugin (which
-ships the compiled `extrapolator_run_cycle` tool). Divergence and agentic
-posture loops execute inside EDAMAME.
+Provisioning installs the `edamame-posture` skill and the MCP plugin.
+Behavioral modelling, divergence, and agentic posture loops all execute
+inside EDAMAME.

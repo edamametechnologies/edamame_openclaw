@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --import tsx --test tests/*.test.ts",
-    "e2e:inject": "bash tests/e2e_inject_intent.sh"
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.19.0"

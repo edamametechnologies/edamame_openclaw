@@ -81,13 +81,13 @@ running locally with MCP enabled. ClawHub's `install` hooks can install
 The user still needs to run `provision.sh` or manual setup steps after
 `clawhub install`.
 
-### Extrapolation Lives in the Plugin
+### Behavioral Models Come From the Host-Side Observer
 
-Reasoning-plane publication is the compiled `extrapolator_run_cycle` tool
-implemented in the `edamame` plugin. A ClawHub-only install of the posture
-skill (without the plugin) does not get this tool, so behavioral models would
-have to come from EDAMAME's host-side transcript observer alone. A bundle
-install keeps the two paths together.
+Behavioral models are produced only by EDAMAME's host-side transcript
+observer; neither the plugin nor the skill pushes one. A ClawHub-only
+install of the posture skill therefore loses nothing on the model side,
+but it still needs `edamame_posture` (or the EDAMAME app) running where
+OpenClaw runs for the observer to see the transcripts.
 
 ### Version Coordination
 

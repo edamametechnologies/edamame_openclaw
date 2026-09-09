@@ -7,39 +7,71 @@ powered by [EDAMAME Security](https://edamame.tech).**
 
 ## How It Works
 
-1. The compiled `extrapolator_run_cycle` plugin tool reads agent session
-   history and publishes behavioral models to EDAMAME via MCP, with zero
-   OpenClaw agent LLM tokens. EDAMAME's host-side transcript observer covers
-   the same path automatically when OpenClaw is host-resident.
-2. EDAMAME's internal divergence engine correlates intent predictions against
-   live system telemetry.
-3. Verdicts (`CLEAN`, `DIVERGENCE`, `NO_MODEL`, `STALE`) are available through
-   `get_divergence_verdict`.
+1. EDAMAME's **host-side transcript observer** (inside the `edamame_posture`
+   daemon or the EDAMAME app) reads OpenClaw session transcripts from
+   `~/.openclaw/sessions/` on the host where OpenClaw runs and builds the
+   behavioral model. It is the only behavioral-model producer; this plugin
+   pushes nothing.
+2. EDAMAME's internal divergence engine correlates the model against live
+   system telemetry (network sessions, sensitive-file access, process
+   lineage, LAN, breaches).
+3. Verdicts (`CLEAN`, `DIVERGENCE`, `NO_MODEL`, `STALE`) are available
+   read-only through `get_divergence_verdict` / `get_divergence_history`.
 4. The `edamame-posture` skill exposes posture, remediation, and telemetry
-   endpoints as an on-demand MCP facade.
+   endpoints as an on-demand MCP facade over the plugin's read-only tools.
 
 ## Observer vs plugin: what provides the security
 
-EDAMAME's **host-side transcript observer is the security control of
-record whenever OpenClaw is host-resident** -- observer-independent and
-needing no plugin. But OpenClaw normally runs **off-host** (Lima VM,
-remote, container, CI), where the host observer cannot read its
-transcripts, so this plugin's MCP path is usually the **primary -- often
-the only -- way the behavioral model reaches EDAMAME**. Either way the
-EDAMAME host stays the verdict authority: the plugin ingests models and
-streamlines onboarding (pairing, PSK, scope filters, read-only posture/
-telemetry tools) but never adjudicates -- divergence verdicts, dismissals,
-and clearing state stay operator-only on the EDAMAME side. See
+EDAMAME's **host-side transcript observer is the only path by which a
+behavioral model reaches EDAMAME**. It is observer-independent: it runs in
+the system plane, a compromised OpenClaw cannot pause, silence, or shape
+it, and it needs no plugin. The MCP intake tools that used to let a plugin
+push a model (`upsert_behavioral_model`,
+`upsert_behavioral_model_from_raw_sessions`) have been removed from
+EDAMAME's MCP surface, and the compiled `extrapolator_run_cycle` tool has
+been removed from this plugin: a model declared by the reasoning plane
+about itself is exactly what an attacker who controls the agent would
+forge.
+
+What this plugin still provides:
+
+- **Read-only tooling** for the agent: posture score, todos, sessions,
+  anomalous / blacklisted sessions, LAN devices, breaches, the current
+  behavioral model, and divergence verdicts.
+- **Advisor workflows** (`agentic_process_todos`, `agentic_execute_action`)
+  that operate on advisor todos, never on observer findings.
+- **Onboarding**: app-mediated pairing, PSK credential handling, and the
+  `edamame-posture` skill facade.
+- **`send_alert`** so a skill can page a human through the OpenClaw
+  messaging channels.
+
+Divergence adjudication, dismissals, and clearing state stay
+operator-only on the EDAMAME side. See
 [Observer vs plugin: the value boundary](docs/ARCHITECTURE.md#observer-vs-plugin-the-value-boundary).
 
-## Extrapolation
+## Off-host OpenClaw (Lima VM, container, remote)
 
-Reasoning-plane publication runs in compiled mode only. The
-`extrapolator_run_cycle` plugin tool deterministically extracts behavioral
-signals from session transcripts and forwards them to EDAMAME's internal LLM
-via `upsert_behavioral_model_from_raw_sessions`. This consumes zero OpenClaw
-agent LLM tokens. EDAMAME's host-side transcript observer covers the same
-path automatically when OpenClaw transcripts are accessible on the host.
+**The observer runs where the agent runs.** The transcript observer reads
+OpenClaw's session files from the local filesystem, so an EDAMAME instance
+on the macOS host cannot observe an OpenClaw gateway running inside a
+Lima VM, a Docker container, or on a remote box. In that case install
+`edamame_posture` in the guest / container / remote host, next to
+OpenClaw, and start it disconnected:
+
+```bash
+edamame_posture background-start-disconnected
+```
+
+Divergence needs no Hub registration: the observer, the divergence
+engine, and the attack pattern detector all run locally in that daemon.
+Point the plugin at that daemon's MCP endpoint (`EDAMAME_MCP_ENDPOINT`,
+default `http://127.0.0.1:3000/mcp`) if the skill should read verdicts
+from inside the guest.
+
+When OpenClaw is discovered on a host but its transcripts are not
+reachable there (`transcripts_root_accessible=false`), the EDAMAME app's
+AI tab shows the agent as **"not observed on this host"** rather than as
+absent. That is the cue to deploy `edamame_posture` where OpenClaw runs.
 
 Lima VM provisioning has moved to
 [openclaw_security](https://github.com/edamametechnologies/openclaw_security).
@@ -50,11 +82,6 @@ Lima VM provisioning has moved to
 
 An OpenClaw plugin exposing EDAMAME MCP tools to agents: telemetry,
 posture, remediation, divergence, LAN scanning, breach detection, and more.
-
-Key tools added in v2.0:
-- `extrapolator_run_cycle` -- compiled extrapolation cycle (zero OpenClaw LLM)
-- `upsert_behavioral_model_from_raw_sessions` -- forward raw transcripts to
-  EDAMAME's internal LLM
 
 ### Scope Filters (Cross-Platform)
 
@@ -125,26 +152,6 @@ cp -r extensions/edamame ~/.openclaw/extensions/
 openclaw plugins enable edamame
 ```
 
-## Local E2E: OpenClaw-shaped raw ingest (no gateway)
-
-To verify the same `RawReasoningSessionPayload` path the plugin uses for `upsert_behavioral_model_from_raw_sessions`,
-without the OpenClaw CLI or gateway:
-
-```bash
-npm run e2e:inject
-```
-
-This builds three synthetic sessions via `scripts/e2e_build_openclaw_payload.mts` (reusing `_buildRawPayload`
-from the plugin), calls `edamame_cli rpc upsert_behavioral_model_from_raw_sessions`, then polls
-`get_behavioral_model` until `predictions[]` lists all three `session_key` values for `agent_type` `openclaw`.
-
-Optional: `E2E_OPENCLAW_AGENT_INSTANCE_ID` forces the instance id used in the payload and verification
-(reads `~/.edamame_openclaw_agent_instance_id` when unset, otherwise normalizes the hostname).
-
-On poll timeout the script prints a JSON diagnosis (or writes it to `E2E_DIAGNOSTICS_FILE`): missing
-`session_keys`, counts of predictions for your agent, contributor rows, and `oc_e2e_*` keys still present.
-Use `E2E_PROGRESS_POLL=1` for per-poll stderr hints. Default `E2E_POLL_ATTEMPTS` is 36 (override for long soaks).
-
 ## Prerequisites
 
 - [OpenClaw CLI](https://docs.openclaw.ai) installed
@@ -184,17 +191,14 @@ chmod 600 ~/.edamame_psk
 
 ### Stable OpenClaw Identity
 
-OpenClaw deployments must use one stable `agent_instance_id` so EDAMAME
-merges behavioral contributors correctly. The setup scripts persist that ID in
-`~/.edamame_openclaw_agent_instance_id` and reuse it for pairing, cron jobs,
-and compiled extrapolator runs.
+OpenClaw deployments use one stable `agent_instance_id` so EDAMAME merges
+observer contributors and pairing state correctly. The setup scripts
+persist that ID in `~/.edamame_openclaw_agent_instance_id`.
 
 - `setup/pair.sh` resolves and stores the deployment ID before requesting
   app-mediated pairing.
-- `setup/provision.sh` recreates the extrapolator cron with the persisted ID
-  embedded in the cron payload.
-- The `edamame` plugin reads the same file and ignores legacy cron values such
-  as `openclaw-default` or `<host>-main` once a stable ID exists.
+- The plugin itself no longer reads this file: it pushes no model, so it
+  has no instance identity to declare.
 
 ## Running in a Lima VM
 
@@ -258,13 +262,9 @@ Alternate ports avoid conflicts with the macOS EDAMAME app.
 
 ## E2E Tests
 
-Intent injection E2E test: see [E2E_TESTS.md](E2E_TESTS.md) for details.
-
-```bash
-bash tests/e2e_inject_intent.sh
-```
-
-The full cross-agent E2E harness (intent + CVE/divergence) lives in
+The per-repo intent-injection E2E has been removed with the plugin's
+model-push path. The cross-agent E2E harness (observer-driven intent +
+CVE/divergence scenarios) lives in
 [edamame_posture/tests/e2e/](https://github.com/edamametechnologies/edamame_posture_cli/tree/main/tests/e2e).
 Run triggers with `--agent-type openclaw`.
 
@@ -284,7 +284,6 @@ Run triggers with `--agent-type openclaw`.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/SETUP.md](docs/SETUP.md)
 - [docs/VALIDATION.md](docs/VALIDATION.md)
-- [E2E_TESTS.md](E2E_TESTS.md)
 
 ## Related Repositories
 

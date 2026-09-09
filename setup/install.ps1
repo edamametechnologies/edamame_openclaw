@@ -31,15 +31,15 @@ foreach ($d in $Dirs) {
 }
 
 # Clean up legacy edamame-extrapolator skill from older installs (skill was
-# removed; reasoning-plane publication is handled by the compiled
-# extrapolator_run_cycle tool plus EDAMAME's host-side transcript observer).
+# removed; behavioral models come from EDAMAME's host-side transcript
+# observer, the plugin no longer pushes any).
 $LegacySkillDir = Join-Path $OpenClawDir "skills\edamame-extrapolator"
 if (Test-Path $LegacySkillDir) { Remove-Item -Recurse -Force $LegacySkillDir }
 
 # Step 1: Install MCP plugin
 $PluginSrc = Join-Path $SourceRoot "extensions\edamame"
 $PluginDst = Join-Path $OpenClawDir "extensions\edamame"
-foreach ($f in @("openclaw.plugin.json", "index.ts", "session_payload.ts")) {
+foreach ($f in @("openclaw.plugin.json", "index.ts")) {
     $src = Join-Path $PluginSrc $f
     if (Test-Path $src) {
         Copy-Item -Force $src (Join-Path $PluginDst $f)

@@ -14,9 +14,9 @@ What gets installed:
   - skills/edamame-posture/ On-demand posture/remediation facade skill
   - edamame-openclaw/      Package metadata (version tracking)
 
-Reasoning-plane publication is handled by the compiled `extrapolator_run_cycle`
-plugin tool (zero OpenClaw LLM tokens) and EDAMAME's host-side transcript
-observer; no separate extrapolator skill is required.
+Behavioral models are produced only by EDAMAME's host-side transcript
+observer (edamame_posture or the EDAMAME app running where OpenClaw runs);
+the plugin ships read-only tools and the posture skill, no extrapolator.
 
 Prerequisites:
   - OpenClaw installed and ~/.openclaw/ directory exists (or will be created)
@@ -51,8 +51,8 @@ mkdir -p "$OPENCLAW_DIR/extensions/edamame"
 mkdir -p "$OPENCLAW_DIR/skills/edamame-posture"
 
 # Clean up legacy edamame-extrapolator skill from older installs (skill was
-# removed; reasoning-plane publication is handled by the compiled
-# extrapolator_run_cycle tool plus EDAMAME's host-side transcript observer).
+# removed; behavioral models come from EDAMAME's host-side transcript
+# observer, the plugin no longer pushes any).
 rm -rf "$OPENCLAW_DIR/skills/edamame-extrapolator"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/state"
 mkdir -p "$OPENCLAW_DIR/edamame-openclaw/service"
@@ -63,7 +63,7 @@ mkdir -p "$OPENCLAW_DIR/edamame-openclaw/assets"
 PLUGIN_SRC="$SOURCE_ROOT/extensions/edamame"
 PLUGIN_DST="$OPENCLAW_DIR/extensions/edamame"
 if [ -f "$PLUGIN_SRC/openclaw.plugin.json" ] && [ -f "$PLUGIN_SRC/index.ts" ]; then
-    for f in openclaw.plugin.json index.ts session_payload.ts; do
+    for f in openclaw.plugin.json index.ts; do
         if [ -f "$PLUGIN_SRC/$f" ]; then
             cp "$PLUGIN_SRC/$f" "$PLUGIN_DST/$f"
             echo "  edamame plugin file installed: $f"

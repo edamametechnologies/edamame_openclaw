@@ -55,7 +55,7 @@ The plugin stores the stable deployment identity in:
 ~/.edamame_openclaw_agent_instance_id
 ```
 
-This ID is reused by pairing, cron jobs, provisioning, and compiled extrapolator runs so EDAMAME merges contributor slices correctly.
+This ID is used by pairing and provisioning. The plugin no longer pushes behavioral models, so it does not read this file itself.
 
 ## Lima / VM Provisioning
 
@@ -66,6 +66,5 @@ repository (`setup/provision.sh`, `setup/setup.sh`, `setup/start.sh`).
 ## Health and Verification
 
 - Unit/helper tests: `npm test`
-- Intent-injection E2E: `bash tests/e2e_inject_intent.sh`
 - OpenClaw-side enablement: `openclaw plugins list`
 - EDAMAME-side status: `edamame-posture agent-plugin-status openclaw`

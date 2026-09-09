@@ -107,7 +107,7 @@ or CLI -- do not try to suppress it programmatically.
 ## Safety Floor
 
 The attack pattern detector runs five model-independent checks that operate
-even when no behavioral model has been pushed. These checks form a safety
+even when no behavioral model exists yet. These checks form a safety
 floor that detects concrete dangerous conditions regardless of whether the
 divergence engine is active:
 

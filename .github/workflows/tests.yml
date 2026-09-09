@@ -124,7 +124,7 @@ jobs:
             const m = require('./extensions/edamame/index.ts');
             const exports = Object.keys(m).filter(k => typeof m[k] === 'function');
             console.log('Exported functions:', exports.length);
-            for (const fn of ['_filterGetSessionsPayload', '_trimScorePayload', '_buildSessionPayload', '_buildRawPayload']) {
+            for (const fn of ['_filterGetSessionsPayload', '_trimScorePayload', '_trimSession', '_callEdamameToolSafe']) {
               if (!exports.includes(fn)) { console.error('FAIL: missing export ' + fn); process.exit(1); }
               console.log('  OK: ' + fn);
             }
