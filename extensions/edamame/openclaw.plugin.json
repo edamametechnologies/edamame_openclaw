@@ -2,7 +2,7 @@
   "id": "edamame",
   "name": "EDAMAME MCP Tools",
   "description": "Expose EDAMAME Posture MCP tools as native OpenClaw tools: read-only posture, telemetry, breach and divergence queries plus advisor workflows for the two-plane security model. Behavioral models come from EDAMAME's host-side transcript observer, not from this plugin. Bundles the edamame-posture skill.",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "skills": [
     "skills/edamame-posture"
   ],
