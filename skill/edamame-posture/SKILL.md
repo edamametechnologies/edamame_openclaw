@@ -88,9 +88,11 @@ agent) cannot silence findings about its own behavior. Therefore the
 following operations are **NOT** available via MCP and require a human
 operator using the EDAMAME app or `edamame_cli rpc`:
 
-- `dismiss_vulnerability_finding`, `undismiss_vulnerability_finding`
-- `dismiss_divergence_evidence`, `undismiss_divergence_evidence`
-- `dismiss_*_with_scope` (recurrence-aware scoped dismissal)
+- `agentic_dismiss_with_scope` (the only dismiss since core 1.9.1; a one-off
+  dismissal is `scope = finding`. The per-key `dismiss_*` / `undismiss_*`
+  RPCs were retired)
+- `agentic_remove_dismissal_rule` (restore: remove the rule a finding's
+  `dismissed_by_rule` names)
 - `remove_agentic_dismissal_rule`, `set_agentic_dismissal_rule_severity_ceiling`
 - `reset_agentic_dismissal_rules`, `clear_agentic_dismissal_audit_log`
 - `clear_divergence_state`, `clear_vulnerability_history`,
