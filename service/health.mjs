@@ -85,6 +85,7 @@ async function callTool(toolName, args, config) {
 
   const abortController = new AbortController();
   const timer = setTimeout(() => abortController.abort(), 30_000);
+  let sessionId = null;
 
   try {
     const initId = 1;
@@ -118,7 +119,7 @@ async function callTool(toolName, args, config) {
       throw new Error(`initialize_error: ${initJson.error.message}`);
     }
 
-    const sessionId = String(initRes.headers?.get?.("mcp-session-id") || "").trim() || null;
+    sessionId = String(initRes.headers?.get?.("mcp-session-id") || "").trim() || null;
 
     const baseHeaders = {
       Accept: "application/json, text/event-stream",
@@ -174,6 +175,19 @@ async function callTool(toolName, args, config) {
     throw error;
   } finally {
     clearTimeout(timer);
+    // One call, one session: end it (the Streamable HTTP DELETE) rather than
+    // leave it open on EDAMAME until its idle timeout.
+    if (sessionId) {
+      try {
+        await fetchImpl(config.endpoint, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${psk}`, "Mcp-Session-Id": sessionId },
+          signal: AbortSignal.timeout(5_000),
+        });
+      } catch {
+        // The server ends idle sessions on its own.
+      }
+    }
   }
 }
 
